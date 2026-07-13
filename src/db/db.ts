@@ -126,6 +126,17 @@ export interface StockTransaction {
   notes?: string;
 }
 
+export interface Subscription {
+  id: string;
+  userId: string;
+  planName: string;
+  amount: number;
+  paymentMethod: string;
+  status: string;
+  activatedAt: string;
+  transactionId: string;
+}
+
 export interface StoreSettings {
   storeName: string;
   logoText: string;
@@ -743,7 +754,14 @@ export const db = {
         ];
         localStorage.setItem('dc_categories', JSON.stringify(INITIAL_CATEGORIES));
         for (const cat of INITIAL_CATEGORIES) {
-          await supabase.from('categories').upsert(cat).catch(err => console.error('Seeding category failed:', err));
+          try {
+            const { error } = await supabase.from('categories').upsert(cat);
+            if (error) {
+              console.error('Seeding category failed:', error);
+            }
+          } catch (err) {
+            console.error('Seeding category failed with exception:', err);
+          }
         }
       }
 
@@ -774,7 +792,9 @@ export const db = {
       list = INITIAL_CATEGORIES;
       localStorage.setItem('dc_categories', JSON.stringify(list));
       INITIAL_CATEGORIES.forEach(cat => {
-        supabase.from('categories').upsert(cat).catch(err => console.error('Seeding category failed:', err));
+        supabase.from('categories').upsert(cat).then(({ error }) => {
+          if (error) console.error('Seeding category failed:', error);
+        });
       });
     }
     return list;
@@ -1368,5 +1388,48 @@ export const db = {
         if (error) console.error('Failed to sync sale status change to Supabase:', error);
       });
     }
+  },
+
+  getSubscriptions: (): Subscription[] => {
+    const saved = localStorage.getItem('dc_subscriptions');
+    return saved ? JSON.parse(saved) : [];
+  },
+
+  recordSubscription: (userId: string, planName: string, amount: number, paymentMethod: string, transactionId?: string): Subscription => {
+    const newSubscription: Subscription = {
+      id: `sub-${Date.now()}`,
+      userId,
+      planName,
+      amount,
+      paymentMethod,
+      status: 'Active',
+      activatedAt: new Date().toISOString(),
+      transactionId: transactionId || `TXN-PHONEPE-${Date.now()}`
+    };
+
+    // Save locally
+    const subsList = db.getSubscriptions();
+    subsList.push(newSubscription);
+    localStorage.setItem('dc_subscriptions', JSON.stringify(subsList));
+
+    // Save subscription flags
+    localStorage.setItem('dc_is_subscribed', 'true');
+    if (!localStorage.getItem('dc_trial_start')) {
+      localStorage.setItem('dc_trial_start', new Date().toISOString());
+    }
+
+    // Sync to Supabase in background
+    (async () => {
+      try {
+        const { error } = await supabase.from('subscriptions').insert(newSubscription);
+        if (error) {
+          console.warn('Subscription sync to Supabase skipped (make sure public.subscriptions table is created in your dashboard SQL Editor):', error.message);
+        }
+      } catch (err) {
+        console.error('Failed to insert subscription record in Supabase:', err);
+      }
+    })();
+
+    return newSubscription;
   }
 };

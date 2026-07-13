@@ -4,17 +4,14 @@ import {
   Typography, 
   Button, 
   Paper, 
-  TextField, 
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Divider,
   Stack,
   Card,
   CardContent
 } from '@mui/material';
-import { Lock, Payment, Star } from '@mui/icons-material';
+import { Lock, Payment } from '@mui/icons-material';
+import { db } from '../db/db';
+import { CheckoutDialog } from './CheckoutDialog';
 
 interface SubscriptionWallProps {
   children: React.ReactNode;
@@ -28,11 +25,6 @@ export const SubscriptionWall: React.FC<SubscriptionWallProps> = ({ children, db
   const [daysLeft, setDaysLeft] = useState<number>(7);
   const [isExpired, setIsExpired] = useState<boolean>(false);
   const [showCheckout, setShowCheckout] = useState<boolean>(false);
-  
-  // Checkout fields
-  const [cardNumber, setCardNumber] = useState<string>('');
-  const [cardExpiry, setCardExpiry] = useState<string>('');
-  const [cardCvv, setCardCvv] = useState<string>('');
 
   useEffect(() => {
     const checkStatus = () => {
@@ -67,18 +59,12 @@ export const SubscriptionWall: React.FC<SubscriptionWallProps> = ({ children, db
     triggerDbUpdate();
   };
 
-  const handleSubscribeSubmit = () => {
-    if (!cardNumber || !cardExpiry || !cardCvv) {
-      alert('Please fill out card details.');
-      return;
-    }
-    // Simulate successful payment
-    localStorage.setItem('dc_is_subscribed', 'true');
+  const handleSubscribeSuccess = (transactionId: string) => {
+    db.recordSubscription('default-user', 'Professional', 6000, 'PhonePe UPI', transactionId);
     setIsSubscribed(true);
     setIsExpired(false);
     setShowCheckout(false);
     triggerDbUpdate();
-    alert('Payment Successful! Thank you for subscribing to DecoCraft Premium (₹6,000/Month).');
   };
 
   // 1. Render Normal App if Subscribed or Trial Active
@@ -160,45 +146,13 @@ export const SubscriptionWall: React.FC<SubscriptionWallProps> = ({ children, db
         </Paper>
 
         {/* Checkout Modal */}
-        <Dialog open={showCheckout} onClose={() => setShowCheckout(false)} maxWidth="xs" fullWidth>
-          <DialogTitle sx={{ fontWeight: 800 }}>Subscribe to DecoCraft Premium</DialogTitle>
-          <DialogContent dividers>
-            <Stack spacing={2} sx={{ pt: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                You will be charged <strong>₹6,000 / month</strong>. Enter card details below (Simulated payment).
-              </Typography>
-              <TextField 
-                label="Card Number" 
-                fullWidth 
-                required 
-                value={cardNumber} 
-                onChange={(e) => setCardNumber(e.target.value)}
-                placeholder="4111 2222 3333 4444" 
-              />
-              <Stack direction="row" spacing={2}>
-                <TextField 
-                  label="Expiry Date" 
-                  required 
-                  value={cardExpiry} 
-                  onChange={(e) => setCardExpiry(e.target.value)}
-                  placeholder="MM/YY" 
-                />
-                <TextField 
-                  label="CVV" 
-                  required 
-                  type="password" 
-                  value={cardCvv} 
-                  onChange={(e) => setCardCvv(e.target.value)}
-                  placeholder="123" 
-                />
-              </Stack>
-            </Stack>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setShowCheckout(false)}>Cancel</Button>
-            <Button onClick={handleSubscribeSubmit} variant="contained" color="primary">Pay & Subscribe</Button>
-          </DialogActions>
-        </Dialog>
+        <CheckoutDialog
+          open={showCheckout}
+          onClose={() => setShowCheckout(false)}
+          onSuccess={handleSubscribeSuccess}
+          amount={6000}
+          planName="Professional"
+        />
       </Box>
     );
   }
@@ -253,45 +207,13 @@ export const SubscriptionWall: React.FC<SubscriptionWallProps> = ({ children, db
       </Paper>
 
       {/* Checkout Modal */}
-      <Dialog open={showCheckout} onClose={() => setShowCheckout(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>Subscribe to DecoCraft Premium</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              You will be charged <strong>₹6,000 / month</strong>. Enter card details below (Simulated payment).
-            </Typography>
-            <TextField 
-              label="Card Number" 
-              fullWidth 
-              required 
-              value={cardNumber} 
-              onChange={(e) => setCardNumber(e.target.value)}
-              placeholder="4111 2222 3333 4444" 
-            />
-            <Stack direction="row" spacing={2}>
-              <TextField 
-                label="Expiry Date" 
-                required 
-                value={cardExpiry} 
-                onChange={(e) => setCardExpiry(e.target.value)}
-                placeholder="MM/YY" 
-              />
-              <TextField 
-                label="CVV" 
-                required 
-                type="password" 
-                value={cardCvv} 
-                onChange={(e) => setCardCvv(e.target.value)}
-                placeholder="123" 
-              />
-            </Stack>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowCheckout(false)}>Cancel</Button>
-          <Button onClick={handleSubscribeSubmit} variant="contained" color="primary">Pay & Subscribe</Button>
-        </DialogActions>
-      </Dialog>
+      <CheckoutDialog
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        onSuccess={handleSubscribeSuccess}
+        amount={6000}
+        planName="Professional"
+      />
     </Box>
   );
 };

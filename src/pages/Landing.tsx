@@ -26,6 +26,13 @@ interface LandingProps {
 }
 
 export const Landing: React.FC<LandingProps> = ({ onLaunchApp }) => {
+  const trialStart = localStorage.getItem('dc_trial_start');
+  const isTrialExpired = (() => {
+    if (!trialStart) return false;
+    const elapsedDays = (Date.now() - new Date(trialStart).getTime()) / (1000 * 60 * 60 * 24);
+    return elapsedDays >= 7;
+  })();
+
   return (
     <Box sx={{ bgcolor: '#0b0f19', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'Outfit, sans-serif' }}>
       
@@ -246,17 +253,26 @@ export const Landing: React.FC<LandingProps> = ({ onLaunchApp }) => {
                     variant="outlined" 
                     fullWidth
                     onClick={onLaunchApp}
+                    disabled={isTrialExpired}
                     sx={{ 
-                      borderColor: '#4f46e5', 
-                      color: '#818cf8', 
+                      borderColor: isTrialExpired ? '#ef4444' : '#4f46e5', 
+                      color: isTrialExpired ? '#ef4444' : '#818cf8', 
                       borderRadius: 3, 
                       py: 1.5,
                       textTransform: 'none',
                       fontWeight: 700,
-                      '&:hover': { bgcolor: 'rgba(79, 70, 229, 0.1)', borderColor: '#818cf8' }
+                      '&:hover': { 
+                        bgcolor: isTrialExpired ? 'transparent' : 'rgba(79, 70, 229, 0.1)', 
+                        borderColor: isTrialExpired ? '#ef4444' : '#818cf8' 
+                      },
+                      '&.Mui-disabled': {
+                        borderColor: '#ef4444',
+                        color: '#ef4444',
+                        opacity: 0.6
+                      }
                     }}
                   >
-                    Start Free Trial
+                    {isTrialExpired ? 'Free Trial Expired' : 'Start Free Trial'}
                   </Button>
                 </CardContent>
               </Card>

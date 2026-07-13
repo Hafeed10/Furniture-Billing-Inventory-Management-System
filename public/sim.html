@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Simulate Trial Expiration</title>
+</head>
+<body>
+  <h1>Simulating...</h1>
+  <script>
+    localStorage.setItem('dc_trial_start', new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString());
+    localStorage.removeItem('dc_is_subscribed');
+    localStorage.removeItem('dc_current_user');
+    window.location.href = '/';
+  </script>
+</body>
+</html>

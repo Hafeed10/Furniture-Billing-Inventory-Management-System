@@ -13,6 +13,7 @@ drop table if exists customers cascade;
 drop table if exists products cascade;
 drop table if exists categories cascade;
 drop table if exists settings cascade;
+drop table if exists subscriptions cascade;
 
 -- 2. CREATE tables matching billing-software interfaces
 
@@ -153,6 +154,18 @@ create table stock_transactions (
   notes text
 );
 
+-- subscriptions table
+create table subscriptions (
+  id text primary key,
+  "userId" text not null,
+  "planName" text not null,
+  amount numeric not null,
+  "paymentMethod" text not null,
+  status text not null,
+  "activatedAt" text not null,
+  "transactionId" text not null
+);
+
 -- 3. DISABLE Row Level Security (RLS) on all tables for public access via anon key
 alter table settings disable row level security;
 alter table categories disable row level security;
@@ -165,3 +178,4 @@ alter table purchases disable row level security;
 alter table purchase_items disable row level security;
 alter table deliveries disable row level security;
 alter table stock_transactions disable row level security;
+alter table subscriptions disable row level security;

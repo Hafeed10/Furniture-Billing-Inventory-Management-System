@@ -17,7 +17,12 @@ import {
   Avatar,
   Menu,
   MenuItem,
-  Button
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  CircularProgress
 } from '@mui/material';
 import { 
   Menu as MenuIcon, 
@@ -49,6 +54,7 @@ import { Settings } from './pages/Settings';
 import { db } from './db/db';
 import { Landing } from './pages/Landing';
 import { SubscriptionWall } from './components/SubscriptionWall';
+import { CheckoutDialog } from './components/CheckoutDialog';
 
 const drawerWidth = 260;
 
@@ -67,6 +73,13 @@ function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [viewMode, setViewMode] = useState<'landing' | 'app'>('landing');
+  const [showPayDialog, setShowPayDialog] = useState(false);
+
+  const handleVerifyPaymentSuccess = (transactionId: string) => {
+    db.recordSubscription('default-user', 'Professional', 6000, 'PhonePe UPI', transactionId);
+    setShowPayDialog(false);
+    triggerDbUpdate();
+  };
 
   React.useEffect(() => {
     const root = window.document.documentElement;
@@ -359,14 +372,7 @@ function App() {
                         size="small" 
                         variant="contained" 
                         color="primary"
-                        onClick={() => {
-                          const cardNumber = prompt('Simulated payment: Enter 16-digit card number to subscribe for ₹6,000/Month:');
-                          if (cardNumber) {
-                            localStorage.setItem('dc_is_subscribed', 'true');
-                            triggerDbUpdate();
-                            alert('Subscribed successfully!');
-                          }
-                        }}
+                        onClick={() => setShowPayDialog(true)}
                         sx={{ textTransform: 'none', fontWeight: 800 }}
                       >
                         Upgrade Now
@@ -386,6 +392,15 @@ function App() {
         
         {/* Hidden print section, only used for raw print outputs */}
         <Box id="print-section" sx={{ display: 'none' }} />
+
+        {/* PhonePe QR Payment Dialog */}
+        <CheckoutDialog
+          open={showPayDialog}
+          onClose={() => setShowPayDialog(false)}
+          onSuccess={handleVerifyPaymentSuccess}
+          amount={6000}
+          planName="Professional"
+        />
       </SubscriptionWall>
     </ThemeProvider>
   );
