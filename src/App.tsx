@@ -47,6 +47,8 @@ import { Deliveries } from './pages/Deliveries';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { db } from './db/db';
+import { Landing } from './pages/Landing';
+import { SubscriptionWall } from './components/SubscriptionWall';
 
 const drawerWidth = 260;
 
@@ -64,6 +66,7 @@ function App() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [viewMode, setViewMode] = useState<'landing' | 'app'>('landing');
 
   React.useEffect(() => {
     const root = window.document.documentElement;
@@ -109,6 +112,16 @@ function App() {
     handleProfileMenuClose();
     logout();
   };
+
+  // If user is not logged in and we are in landing mode, show landing page
+  if (!currentUser && viewMode === 'landing') {
+    return (
+      <ThemeProvider theme={activeTheme}>
+        <CssBaseline />
+        <Landing onLaunchApp={() => setViewMode('app')} />
+      </ThemeProvider>
+    );
+  }
 
   // If user is not logged in, show login page
   if (!currentUser) {
@@ -218,112 +231,162 @@ function App() {
   return (
     <ThemeProvider theme={activeTheme}>
       <CssBaseline />
-      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }} className="no-print">
-        {/* Top Header App Bar */}
-        <AppBar
-          position="fixed"
-          sx={{
-            width: { md: `calc(100% - ${drawerWidth}px)` },
-            ml: { md: `${drawerWidth}px` },
-          }}
-        >
-          <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 3 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <IconButton
-                color="inherit"
-                aria-label="open drawer"
-                edge="start"
-                onClick={handleDrawerToggle}
-                sx={{ mr: 2, display: { md: 'none' } }}
-              >
-                <MenuIcon />
-              </IconButton>
-              <Typography variant="h6" noWrap sx={{ fontWeight: 700, letterSpacing: 0.5, display: { xs: 'none', sm: 'block' } }}>
-                {storeSettings.storeName}
-              </Typography>
-            </Box>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {/* Theme toggle */}
-              <IconButton onClick={toggleTheme} color="inherit">
-                {themeMode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-              </IconButton>
-
-              {/* User Dropdown */}
-              <IconButton onClick={handleProfileMenuOpen} sx={{ p: 0 }}>
-                <Avatar sx={{ bgcolor: 'primary.main', width: 36, height: 36 }}>
-                  {currentUser.name.charAt(0)}
-                </Avatar>
-              </IconButton>
-              <Menu
-                anchorEl={anchorEl}
-                open={Boolean(anchorEl)}
-                onClose={handleProfileMenuClose}
-                transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-                anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-              >
-                <MenuItem onClick={handleLogoutClick} sx={{ gap: 1 }}>
-                  <Logout fontSize="small" />
-                  Logout
-                </MenuItem>
-              </Menu>
-            </Box>
-          </Toolbar>
-        </AppBar>
-
-        {/* Sidebar Navigations */}
-        <Box
-          component="nav"
-          sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
-        >
-          {/* Mobile drawer */}
-          <Drawer
-            variant="temporary"
-            open={mobileOpen}
-            onClose={handleDrawerToggle}
-            ModalProps={{ keepMounted: true }}
+      <SubscriptionWall dbRevision={dbRevision} triggerDbUpdate={triggerDbUpdate}>
+        <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }} className="no-print">
+          {/* Top Header App Bar */}
+          <AppBar
+            position="fixed"
             sx={{
-              display: { xs: 'block', md: 'none' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, backgroundImage: 'none' },
+              width: { md: `calc(100% - ${drawerWidth}px)` },
+              ml: { md: `${drawerWidth}px` },
             }}
           >
-            {drawerContent}
-          </Drawer>
+            <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 3 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <IconButton
+                  color="inherit"
+                  aria-label="open drawer"
+                  edge="start"
+                  onClick={handleDrawerToggle}
+                  sx={{ mr: 2, display: { md: 'none' } }}
+                >
+                  <MenuIcon />
+                </IconButton>
+                <Typography variant="h6" noWrap sx={{ fontWeight: 700, letterSpacing: 0.5, display: { xs: 'none', sm: 'block' } }}>
+                  {storeSettings.storeName}
+                </Typography>
+              </Box>
 
-          {/* Desktop drawer */}
-          <Drawer
-            variant="permanent"
-            sx={{
-              display: { xs: 'none', md: 'block' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRight: '1px solid', borderColor: 'divider' },
-            }}
-            open
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {/* Theme toggle */}
+                <IconButton onClick={toggleTheme} color="inherit">
+                  {themeMode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+                </IconButton>
+
+                {/* User Dropdown */}
+                <IconButton onClick={handleProfileMenuOpen} sx={{ p: 0 }}>
+                  <Avatar sx={{ bgcolor: 'primary.main', width: 36, height: 36 }}>
+                    {currentUser.name.charAt(0)}
+                  </Avatar>
+                </IconButton>
+                <Menu
+                  anchorEl={anchorEl}
+                  open={Boolean(anchorEl)}
+                  onClose={handleProfileMenuClose}
+                  transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                  anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                >
+                  <MenuItem onClick={handleLogoutClick} sx={{ gap: 1 }}>
+                    <Logout fontSize="small" />
+                    Logout
+                  </MenuItem>
+                </Menu>
+              </Box>
+            </Toolbar>
+          </AppBar>
+
+          {/* Sidebar Navigations */}
+          <Box
+            component="nav"
+            sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
           >
-            {drawerContent}
-          </Drawer>
-        </Box>
+            {/* Mobile drawer */}
+            <Drawer
+              variant="temporary"
+              open={mobileOpen}
+              onClose={handleDrawerToggle}
+              ModalProps={{ keepMounted: true }}
+              sx={{
+                display: { xs: 'block', md: 'none' },
+                '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, backgroundImage: 'none' },
+              }}
+            >
+              {drawerContent}
+            </Drawer>
 
-        {/* Core Content Area */}
-        <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            p: { xs: 2, md: 3 },
-            width: { md: `calc(100% - ${drawerWidth}px)` },
-            minHeight: '100vh',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
-        >
-          <Toolbar /> {/* spacing anchor under header */}
-          <Box sx={{ flexGrow: 1 }}>
-            {renderActivePage()}
+            {/* Desktop drawer */}
+            <Drawer
+              variant="permanent"
+              sx={{
+                display: { xs: 'none', md: 'block' },
+                '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRight: '1px solid', borderColor: 'divider' },
+              }}
+              open
+            >
+              {drawerContent}
+            </Drawer>
+          </Box>
+
+          {/* Core Content Area */}
+          <Box
+            component="main"
+            sx={{
+              flexGrow: 1,
+              p: { xs: 2, md: 3 },
+              width: { md: `calc(100% - ${drawerWidth}px)` },
+              minHeight: '100vh',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <Toolbar /> {/* spacing anchor under header */}
+            
+            {/* Trial Status Banner */}
+            {(() => {
+              const trialStart = localStorage.getItem('dc_trial_start');
+              const isSubscribed = localStorage.getItem('dc_is_subscribed') === 'true';
+              if (trialStart && !isSubscribed) {
+                const elapsedDays = (Date.now() - new Date(trialStart).getTime()) / (1000 * 60 * 60 * 24);
+                const daysLeft = Math.max(0, 7 - Math.floor(elapsedDays));
+                if (daysLeft > 0) {
+                  return (
+                    <Box sx={{ 
+                      bgcolor: 'warning.dark', 
+                      color: 'warning.contrastText', 
+                      py: 1, 
+                      px: 2, 
+                      borderRadius: 2, 
+                      mb: 2, 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                    }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        ⏳ Free Trial: {daysLeft} days remaining. Upgrade to Premium for ₹6,000/Month.
+                      </Typography>
+                      <Button 
+                        size="small" 
+                        variant="contained" 
+                        color="primary"
+                        onClick={() => {
+                          const cardNumber = prompt('Simulated payment: Enter 16-digit card number to subscribe for ₹6,000/Month:');
+                          if (cardNumber) {
+                            localStorage.setItem('dc_is_subscribed', 'true');
+                            triggerDbUpdate();
+                            alert('Subscribed successfully!');
+                          }
+                        }}
+                        sx={{ textTransform: 'none', fontWeight: 800 }}
+                      >
+                        Upgrade Now
+                      </Button>
+                    </Box>
+                  );
+                }
+              }
+              return null;
+            })()}
+
+            <Box sx={{ flexGrow: 1 }}>
+              {renderActivePage()}
+            </Box>
           </Box>
         </Box>
-      </Box>
-      
-      {/* Hidden print section, only used for raw print outputs */}
-      <Box id="print-section" sx={{ display: 'none' }} />
+        
+        {/* Hidden print section, only used for raw print outputs */}
+        <Box id="print-section" sx={{ display: 'none' }} />
+      </SubscriptionWall>
     </ThemeProvider>
   );
 }
