@@ -25,13 +25,28 @@ export const Reports: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState(0);
 
-  // Load datasets
-  const sales = useMemo(() => db.getSales(), [dbRevision]);
-  const saleItems = useMemo(() => db.getSaleItems(), [dbRevision]);
+  // Load datasets (excluding seed/demo records so reports only represent real customer transactions)
+  const sales = useMemo(() => {
+    return db.getSales().filter(s => s.id !== 'sale-1' && s.id !== 'sale-2' && s.id !== 'sale-3');
+  }, [dbRevision]);
+
+  const saleItems = useMemo(() => {
+    return db.getSaleItems().filter(item => item.saleId !== 'sale-1' && item.saleId !== 'sale-2' && item.saleId !== 'sale-3');
+  }, [dbRevision]);
+
   const products = useMemo(() => db.getProducts(), [dbRevision]);
-  const customers = useMemo(() => db.getCustomers(), [dbRevision]);
-  const purchases = useMemo(() => db.getPurchases(), [dbRevision]);
-  const purchaseItems = useMemo(() => db.getPurchaseItems(), [dbRevision]);
+
+  const customers = useMemo(() => {
+    return db.getCustomers().filter(c => c.id !== 'cust-1' && c.id !== 'cust-2' && c.id !== 'cust-3');
+  }, [dbRevision]);
+
+  const purchases = useMemo(() => {
+    return db.getPurchases().filter(p => p.id !== 'purch-1');
+  }, [dbRevision]);
+
+  const purchaseItems = useMemo(() => {
+    return db.getPurchaseItems().filter(item => item.purchaseId !== 'purch-1');
+  }, [dbRevision]);
 
   // Tab 0: Sales (Daily / Monthly)
   const salesReportData = useMemo(() => {

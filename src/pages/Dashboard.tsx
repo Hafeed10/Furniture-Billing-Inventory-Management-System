@@ -106,8 +106,9 @@ export const Dashboard: React.FC = () => {
       value: catSales[catName]
     }));
 
-    // Recent 5 sales
-    const recentSales = [...sales]
+    // Recent 5 sales (excluding seeded demo sales, showing only real user transactions)
+    const recentSales = sales
+      .filter(s => s.id !== 'sale-1' && s.id !== 'sale-2' && s.id !== 'sale-3')
       .sort((a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime())
       .slice(0, 5);
 

@@ -529,35 +529,107 @@ export const initDb = () => {
   if (!localStorage.getItem('dc_settings')) {
     localStorage.setItem('dc_settings', JSON.stringify(INITIAL_SETTINGS));
   }
-  if (!localStorage.getItem('dc_categories')) {
-    localStorage.setItem('dc_categories', JSON.stringify([]));
+  const localCats = localStorage.getItem('dc_categories');
+  if (!localCats || JSON.parse(localCats).length === 0) {
+    localStorage.setItem('dc_categories', JSON.stringify(INITIAL_CATEGORIES));
   }
-  if (!localStorage.getItem('dc_products')) {
-    localStorage.setItem('dc_products', JSON.stringify([]));
+  const localProducts = localStorage.getItem('dc_products');
+  if (!localProducts || JSON.parse(localProducts).length === 0) {
+    localStorage.setItem('dc_products', JSON.stringify(INITIAL_PRODUCTS));
   }
-  if (!localStorage.getItem('dc_customers')) {
-    localStorage.setItem('dc_customers', JSON.stringify([]));
+  const localCustomers = localStorage.getItem('dc_customers');
+  if (!localCustomers || JSON.parse(localCustomers).length === 0) {
+    localStorage.setItem('dc_customers', JSON.stringify(INITIAL_CUSTOMERS));
   }
-  if (!localStorage.getItem('dc_suppliers')) {
-    localStorage.setItem('dc_suppliers', JSON.stringify([]));
+  const localSuppliers = localStorage.getItem('dc_suppliers');
+  if (!localSuppliers || JSON.parse(localSuppliers).length === 0) {
+    localStorage.setItem('dc_suppliers', JSON.stringify(INITIAL_SUPPLIERS));
   }
-  if (!localStorage.getItem('dc_sales')) {
-    localStorage.setItem('dc_sales', JSON.stringify([]));
+  
+  // Sales & related history seeding
+  const localSales = localStorage.getItem('dc_sales');
+  if (!localSales || JSON.parse(localSales).length === 0) {
+    const salesData = seedSales();
+    localStorage.setItem('dc_sales', JSON.stringify(salesData.sales));
+    
+    if (!localStorage.getItem('dc_sale_items') || JSON.parse(localStorage.getItem('dc_sale_items')!).length === 0) {
+      localStorage.setItem('dc_sale_items', JSON.stringify(salesData.saleItems));
+    }
+    if (!localStorage.getItem('dc_deliveries') || JSON.parse(localStorage.getItem('dc_deliveries')!).length === 0) {
+      localStorage.setItem('dc_deliveries', JSON.stringify(salesData.deliveries));
+    }
+    if (!localStorage.getItem('dc_stock_transactions') || JSON.parse(localStorage.getItem('dc_stock_transactions')!).length === 0) {
+      localStorage.setItem('dc_stock_transactions', JSON.stringify(salesData.transactions));
+    }
+  } else {
+    if (!localStorage.getItem('dc_sale_items')) {
+      localStorage.setItem('dc_sale_items', JSON.stringify([]));
+    }
+    if (!localStorage.getItem('dc_deliveries')) {
+      localStorage.setItem('dc_deliveries', JSON.stringify([]));
+    }
+    if (!localStorage.getItem('dc_stock_transactions')) {
+      localStorage.setItem('dc_stock_transactions', JSON.stringify([]));
+    }
   }
-  if (!localStorage.getItem('dc_sale_items')) {
-    localStorage.setItem('dc_sale_items', JSON.stringify([]));
+
+  // Purchases & related history seeding
+  const localPurchases = localStorage.getItem('dc_purchases');
+  if (!localPurchases || JSON.parse(localPurchases).length === 0) {
+    const purchasesData = seedPurchases();
+    localStorage.setItem('dc_purchases', JSON.stringify(purchasesData.purchases));
+    
+    if (!localStorage.getItem('dc_purchase_items') || JSON.parse(localStorage.getItem('dc_purchase_items')!).length === 0) {
+      localStorage.setItem('dc_purchase_items', JSON.stringify(purchasesData.purchaseItems));
+    }
+    
+    const localTxStr = localStorage.getItem('dc_stock_transactions');
+    const txList = localTxStr ? JSON.parse(localTxStr) : [];
+    purchasesData.transactions.forEach(ptx => {
+      if (!txList.some((t: any) => t.id === ptx.id)) {
+        txList.push(ptx);
+      }
+    });
+    localStorage.setItem('dc_stock_transactions', JSON.stringify(txList));
+  } else {
+    if (!localStorage.getItem('dc_purchase_items')) {
+      localStorage.setItem('dc_purchase_items', JSON.stringify([]));
+    }
   }
-  if (!localStorage.getItem('dc_deliveries')) {
-    localStorage.setItem('dc_deliveries', JSON.stringify([]));
-  }
-  if (!localStorage.getItem('dc_stock_transactions')) {
-    localStorage.setItem('dc_stock_transactions', JSON.stringify([]));
-  }
-  if (!localStorage.getItem('dc_purchases')) {
-    localStorage.setItem('dc_purchases', JSON.stringify([]));
-  }
-  if (!localStorage.getItem('dc_purchase_items')) {
-    localStorage.setItem('dc_purchase_items', JSON.stringify([]));
+};
+
+// Helper function to sync and merge local cache with Supabase tables
+const syncTable = async <T extends { id: string }>(
+  tableName: string,
+  remoteList: T[] | null,
+  localKey: string
+) => {
+  if (!remoteList) return;
+
+  const localStr = localStorage.getItem(localKey);
+  const localList: T[] = localStr ? JSON.parse(localStr) : [];
+
+  // Merge remote and local: remote wins in case of ID conflict
+  const mergedMap = new Map<string, T>();
+  localList.forEach(item => mergedMap.set(item.id, item));
+  remoteList.forEach(item => mergedMap.set(item.id, item));
+
+  const mergedList = Array.from(mergedMap.values());
+  localStorage.setItem(localKey, JSON.stringify(mergedList));
+
+  // Identify local-only items that need to be sent to Supabase
+  const unsyncedItems = localList.filter(
+    localItem => !remoteList.some(remoteItem => remoteItem.id === localItem.id)
+  );
+
+  if (unsyncedItems.length > 0) {
+    console.log(`Syncing ${unsyncedItems.length} local-only items for table '${tableName}' to Supabase...`);
+    for (const item of unsyncedItems) {
+      const { error } = await supabase.from(tableName).upsert(item);
+      if (error) {
+        console.warn(`Failed to sync local item ${item.id} in table '${tableName}' to Supabase:`, error);
+      }
+    }
   }
 };
 
@@ -644,21 +716,41 @@ export const db = {
       if (settings && settings.length > 0) {
         localStorage.setItem('dc_settings', JSON.stringify(settings[0]));
       }
-      if (categories) localStorage.setItem('dc_categories', JSON.stringify(categories));
-      if (products) localStorage.setItem('dc_products', JSON.stringify(products));
-      if (customers) localStorage.setItem('dc_customers', JSON.stringify(customers));
-      if (suppliers) localStorage.setItem('dc_suppliers', JSON.stringify(suppliers));
-      if (sales) localStorage.setItem('dc_sales', JSON.stringify(sales));
-      if (saleItems) localStorage.setItem('dc_sale_items', JSON.stringify(saleItems));
-      if (purchases) localStorage.setItem('dc_purchases', JSON.stringify(purchases));
-      if (purchaseItems) localStorage.setItem('dc_purchase_items', JSON.stringify(purchaseItems));
-      if (deliveries) localStorage.setItem('dc_deliveries', JSON.stringify(deliveries));
-      if (stockTransactions) localStorage.setItem('dc_stock_transactions', JSON.stringify(stockTransactions));
+
+      await Promise.all([
+        syncTable('categories', categories, 'dc_categories'),
+        syncTable('products', products, 'dc_products'),
+        syncTable('customers', customers, 'dc_customers'),
+        syncTable('suppliers', suppliers, 'dc_suppliers'),
+        syncTable('sales', sales, 'dc_sales'),
+        syncTable('sale_items', saleItems, 'dc_sale_items'),
+        syncTable('purchases', purchases, 'dc_purchases'),
+        syncTable('purchase_items', purchaseItems, 'dc_purchase_items'),
+        syncTable('deliveries', deliveries, 'dc_deliveries'),
+        syncTable('stock_transactions', stockTransactions, 'dc_stock_transactions')
+      ]);
+
+      // Fallback for categories if empty after sync
+      const localCatsStr = localStorage.getItem('dc_categories');
+      const localCats = localCatsStr ? JSON.parse(localCatsStr) : [];
+      if (localCats.length === 0) {
+        const INITIAL_CATEGORIES = [
+          { id: 'cat-1', name: 'Sofas & Recliners' },
+          { id: 'cat-2', name: 'Beds & Wardrobes' },
+          { id: 'cat-3', name: 'Dining Tables' },
+          { id: 'cat-4', name: 'Office Chairs & Desks' },
+          { id: 'cat-5', name: 'TV Units & Cabinets' }
+        ];
+        localStorage.setItem('dc_categories', JSON.stringify(INITIAL_CATEGORIES));
+        for (const cat of INITIAL_CATEGORIES) {
+          await supabase.from('categories').upsert(cat).catch(err => console.error('Seeding category failed:', err));
+        }
+      }
 
       if (triggerUpdate) {
         triggerUpdate();
       }
-      console.log('Successfully synced all tables from Supabase!');
+      console.log('Successfully synced and merged all tables with Supabase!');
     } catch (err) {
       console.warn('Could not sync from Supabase (tables may not exist or are empty):', err);
     }
@@ -676,7 +768,16 @@ export const db = {
   },
   getCategories: (): Category[] => {
     initDb();
-    return JSON.parse(localStorage.getItem('dc_categories')!);
+    const categoriesStr = localStorage.getItem('dc_categories');
+    let list = categoriesStr ? JSON.parse(categoriesStr) : [];
+    if (list.length === 0) {
+      list = INITIAL_CATEGORIES;
+      localStorage.setItem('dc_categories', JSON.stringify(list));
+      INITIAL_CATEGORIES.forEach(cat => {
+        supabase.from('categories').upsert(cat).catch(err => console.error('Seeding category failed:', err));
+      });
+    }
+    return list;
   },
   saveCategory: (category: Category) => {
     const list = db.getCategories();

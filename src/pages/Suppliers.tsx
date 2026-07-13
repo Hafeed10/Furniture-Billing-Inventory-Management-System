@@ -40,7 +40,7 @@ export const Suppliers: React.FC = () => {
   const filtered = useMemo(() => {
     return suppliers.filter(s => 
       s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.contactPerson.toLowerCase().includes(search.toLowerCase()) ||
+      (s.contactPerson && s.contactPerson.toLowerCase().includes(search.toLowerCase())) ||
       s.phone.includes(search)
     );
   }, [suppliers, search]);

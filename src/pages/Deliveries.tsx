@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   TextField, 
   Dialog, 
@@ -58,6 +58,72 @@ export const Deliveries: React.FC = () => {
   const deliveries = useMemo(() => db.getDeliveries(), [dbRevision]);
   const sales = useMemo(() => db.getSales(), [dbRevision]);
   const customers = useMemo(() => db.getCustomers(), [dbRevision]);
+  const saleItems = useMemo(() => db.getSaleItems(), [dbRevision]);
+
+  // Optimization state and handlers
+  const [optimizationData, setOptimizationData] = useState<{
+    deliveries: (Delivery & { eta?: string; routeSequence?: number })[];
+    metrics: {
+      distanceSaved: string;
+      fuelSaved: string;
+      logs: { id: string; invoiceNumber: string; customerName: string; message: string }[];
+    }
+  } | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+
+  const handleRunOptimization = async () => {
+    setIsOptimizing(true);
+    try {
+      const response = await fetch('http://localhost:5001/api/optimize-deliveries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          deliveries,
+          sales,
+          customers
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setOptimizationData(data);
+      } else {
+        console.error('Failed to run route optimization backend');
+      }
+    } catch (err) {
+      console.error('Backend server offline or failed to optimize:', err);
+      // Fallback to offline mock logic
+      const activeDels = deliveries.filter(d => d.status === 'Pending' || d.status === 'Shipped');
+      const routeLogs = activeDels.map((d, idx) => {
+        const sale = sales.find(s => s.id === d.saleId);
+        const customer = sale ? customers.find(c => c.id === sale.customerId) : null;
+        return {
+          id: d.id,
+          invoiceNumber: sale?.invoiceNumber || 'INV-XXX',
+          customerName: customer?.name || 'Customer',
+          message: `[OFFLINE FALLBACK] Optimized route sequence #${idx + 1}. Expected arrival at 10:${15 + idx * 30} AM.`
+        };
+      });
+      setOptimizationData({
+        deliveries: deliveries.map((d, idx) => {
+          const activeIndex = activeDels.findIndex(act => act.id === d.id);
+          return activeIndex >= 0 ? { ...d, eta: `10:${15 + activeIndex * 30} AM`, routeSequence: activeIndex + 1 } : d;
+        }),
+        metrics: {
+          distanceSaved: `${activeDels.length * 3.8} km`,
+          fuelSaved: `↓ ${(8 + activeDels.length * 1.2).toFixed(1)}% v. last week`,
+          logs: routeLogs
+        }
+      });
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  useEffect(() => {
+    handleRunOptimization();
+  }, [deliveries, sales, customers]);
 
   // Dialog & Actions Menu State
   const [open, setOpen] = useState(false);
@@ -165,9 +231,9 @@ export const Deliveries: React.FC = () => {
         sale?.invoiceNumber || 'N/A',
         customer?.name || 'Walk-in',
         customer?.phone || '',
-        del.deliveryAddress.replace(/"/g, '""'),
+        (del.deliveryAddress || '').replace(/"/g, '""'),
         del.driverName || 'Not Assigned',
-        new Date(del.deliveryDate).toLocaleDateString('en-IN'),
+        del.deliveryDate ? new Date(del.deliveryDate).toLocaleDateString('en-IN') : 'N/A',
         statusText,
         installationText
       ];
@@ -190,7 +256,8 @@ export const Deliveries: React.FC = () => {
 
   // Filter Deliveries
   const filteredDeliveries = useMemo(() => {
-    return deliveries.filter(del => {
+    const listSrc = optimizationData ? optimizationData.deliveries : deliveries;
+    return listSrc.filter(del => {
       const sale = sales.find(s => s.id === del.saleId);
       const customer = sale ? customers.find(c => c.id === sale.customerId) : null;
       
@@ -226,8 +293,9 @@ export const Deliveries: React.FC = () => {
 
   // Active Drivers list mapping for map mockup
   const mapDrivers = useMemo(() => {
+    const listSrc = optimizationData ? optimizationData.deliveries : deliveries;
     // Unique list of active drivers in system
-    const activeFromDb = deliveries
+    const activeFromDb = listSrc
       .filter(d => d.status === 'Pending' || d.status === 'Shipped')
       .map(d => {
         const sale = sales.find(s => s.id === d.saleId);
@@ -240,7 +308,8 @@ export const Deliveries: React.FC = () => {
           customerName: customer?.name || 'Walk-in',
           status: d.status,
           x: coords.x,
-          y: coords.y
+          y: coords.y,
+          eta: (d as any).eta
         };
       });
 
@@ -271,7 +340,7 @@ export const Deliveries: React.FC = () => {
       }
     }
     return list;
-  }, [deliveries, sales, customers]);
+  }, [deliveries, sales, customers, optimizationData]);
 
   // Statistics Computations
   const totalDeliveryRevenue = useMemo(() => {
@@ -286,7 +355,7 @@ export const Deliveries: React.FC = () => {
   const metrics = useMemo(() => [
     {
       title: 'Fuel Performance',
-      value: `$${(totalDeliveryRevenue || 1240).toLocaleString()}`,
+      value: `₹${(totalDeliveryRevenue || 1240).toLocaleString('en-IN')}`,
       subtext: '-4% v. last week',
       subtextColor: 'text-emerald-600 dark:text-emerald-400',
       icon: <LocalGasStation className="w-6 h-6" />,
@@ -400,7 +469,7 @@ export const Deliveries: React.FC = () => {
 
               return (
                 <Tooltip 
-                  title={`${driver.driverName} - ${driver.invoice} for ${driver.customerName}`}
+                  title={`${driver.driverName} - ${driver.invoice} for ${driver.customerName}${driver.eta ? ` (ETA: ${driver.eta})` : ''}`}
                   key={driver.id}
                   arrow
                 >
@@ -458,7 +527,6 @@ export const Deliveries: React.FC = () => {
             </div>
           </div>
         </div>
-
         {/* Efficiency Goal Card */}
         <div className="lg:col-span-4 bg-gradient-to-br from-[#022c83] to-[#004dcf] dark:from-slate-900 dark:to-indigo-950 text-white rounded-2xl shadow-lg border border-transparent dark:border-slate-800 p-8 flex flex-col justify-between min-h-[380px]">
           <div>
@@ -468,21 +536,28 @@ export const Deliveries: React.FC = () => {
             
             <div className="flex items-baseline gap-1 mb-4">
               <span className="text-5xl font-extrabold tracking-tight">
-                94.2%
+                {optimizationData ? optimizationData.metrics.fuelSaved.replace('↓', '').replace('v. last week', '').trim() : '12.5%'}
               </span>
             </div>
 
             {/* Progress bar styled in Tailwind */}
             <div className="h-2 w-full bg-white/20 rounded-full overflow-hidden mb-5">
-              <div className="h-full bg-white rounded-full transition-all duration-500" style={{ width: '94.2%' }}></div>
+              <div className="h-full bg-white rounded-full transition-all duration-500" style={{ width: optimizationData ? `${parseFloat(optimizationData.metrics.fuelSaved.replace(/[^0-9.]/g, '')) * 5}%` : '60%' }}></div>
             </div>
 
             <p className="text-sm opacity-90 leading-relaxed font-medium">
-              Optimized routes saved 124km of fuel today.
+              Optimized routes saved {optimizationData ? optimizationData.metrics.distanceSaved : '12.4 km'} of fuel today.
             </p>
           </div>
 
-          <div className="mt-8">
+          <div className="mt-8 flex flex-col gap-2">
+            <button 
+              onClick={handleRunOptimization}
+              disabled={isOptimizing}
+              className="w-full py-2.5 px-4 rounded-lg bg-white text-indigo-900 font-bold hover:bg-indigo-50 transition duration-200 cursor-pointer text-sm disabled:opacity-50"
+            >
+              {isOptimizing ? 'Optimizing...' : 'Re-run Route Optimizer'}
+            </button>
             <button 
               onClick={() => setLogsOpen(true)}
               className="w-full py-2.5 px-4 rounded-lg border border-white/50 hover:border-white bg-transparent hover:bg-white/10 text-white font-bold transition duration-200 cursor-pointer text-sm"
@@ -565,6 +640,7 @@ export const Deliveries: React.FC = () => {
                 <tr className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold">
                   <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider">Order #</th>
                   <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider">Customer</th>
+                  <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider">Products</th>
                   <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider">Driver</th>
                   <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider">Status</th>
                   <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider">Installation</th>
@@ -577,10 +653,10 @@ export const Deliveries: React.FC = () => {
                   const customer = sale ? customers.find(c => c.id === sale.customerId) : null;
                   
                   // Parse area from address to make it clean
-                  const addressParts = del.deliveryAddress.split(',');
+                  const addressParts = (del.deliveryAddress || '').split(',');
                   const cleanArea = addressParts.length > 2 
                     ? `${addressParts[0].trim()}, ${addressParts[1].trim()}` 
-                    : del.deliveryAddress;
+                    : (del.deliveryAddress || '');
 
                   // Format Status Badge
                   const getStatusBadge = (status: typeof del.status) => {
@@ -649,6 +725,26 @@ export const Deliveries: React.FC = () => {
                         </div>
                       </td>
 
+                      {/* Products */}
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1 max-w-[220px]">
+                          {saleItems
+                            .filter(item => item.saleId === del.saleId)
+                            .map((item, idx) => (
+                              <span 
+                                key={idx} 
+                                className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-indigo-50 dark:bg-slate-850/60 text-indigo-700 dark:text-indigo-300 w-fit"
+                              >
+                                {item.quantity}x {item.productName}
+                              </span>
+                            ))
+                          }
+                          {saleItems.filter(item => item.saleId === del.saleId).length === 0 && (
+                            <span className="text-xs text-slate-400 italic">No products</span>
+                          )}
+                        </div>
+                      </td>
+
                       {/* Driver */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2.5">
@@ -664,6 +760,11 @@ export const Deliveries: React.FC = () => {
                       {/* Status */}
                       <td className="px-6 py-4">
                         {getStatusBadge(del.status)}
+                        {(del as any).eta && (
+                          <div className="text-xs font-bold text-indigo-650 dark:text-indigo-400 mt-1 whitespace-nowrap">
+                            ETA: {(del as any).eta}
+                          </div>
+                        )}
                       </td>
 
                       {/* Installation */}
@@ -870,45 +971,32 @@ export const Deliveries: React.FC = () => {
             
             <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800">
               <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">
-                TODAY - 08:30 AM (SYSTEM AUTO-RUN)
+                TODAY - {new Date().toLocaleDateString('en-IN')} (EXPRESS BACKEND AUTO-RUN)
               </span>
               <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                Success: Optimized routes for all active dispatches. Saved 124km fuel (~12.5% decrease).
+                Success: Optimized routes for all active dispatches. Saved {optimizationData?.metrics.distanceSaved || '12.4 km'} fuel ({optimizationData?.metrics.fuelSaved || '↓ 12.5%'}).
               </p>
             </div>
 
             <div className="pl-1">
               <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-4">
-                Individual Optimization Details
+                Individual Route Logs
               </h4>
               
               <div className="flex flex-col gap-4">
-                <div>
-                  <h5 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                    ORD-8821 (Anita Mishra)
-                  </h5>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Route re-routed via Outer Ring Road due to heavy traffic on Central Ave. Saved 4.2 km.
-                  </p>
-                </div>
-                
-                <div>
-                  <h5 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                    ORD-8822 (Vikram Khanna)
-                  </h5>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Combined delivery slot with near-site customer. Saved 12.8 km in duplicate route loops.
-                  </p>
-                </div>
-                
-                <div>
-                  <h5 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                    DC-INV-103 (Vikram Singh)
-                  </h5>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Selected toll highway NH-48 as primary corridor. Saved 3.1 km of suburban intersections.
-                  </p>
-                </div>
+                {optimizationData?.metrics.logs.map((log, idx) => (
+                  <div key={idx}>
+                    <h5 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                      {log.invoiceNumber} - {log.customerName}
+                    </h5>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {log.message}
+                    </p>
+                  </div>
+                ))}
+                {(!optimizationData || optimizationData.metrics.logs.length === 0) && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">No active optimized routes currently loaded.</p>
+                )}
               </div>
             </div>
 
