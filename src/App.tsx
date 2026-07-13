@@ -78,8 +78,12 @@ function App() {
 
   React.useEffect(() => {
     const initSync = async () => {
+      db.cleanupDuplicateSales();
+      triggerDbUpdate();
+      
       await db.checkAndSeedSupabase();
       await db.syncFromSupabase(() => {
+        db.cleanupDuplicateSales();
         triggerDbUpdate();
       });
     };

@@ -20,7 +20,9 @@ import {
   DialogActions,
   Divider,
   InputAdornment,
-  Autocomplete
+  Autocomplete,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import { 
   Add, 
@@ -51,6 +53,8 @@ export const Billing: React.FC = () => {
   const [installationCharge, setInstallationCharge] = useState<number>(0);
   const [advancePayment, setAdvancePayment] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'UPI'>('Cash');
+  const [paymentStatus, setPaymentStatus] = useState<'Paid' | 'Pending' | 'Partial'>('Paid');
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Customer Add Form State
   const [openCustDialog, setOpenCustDialog] = useState(false);
@@ -88,6 +92,15 @@ export const Billing: React.FC = () => {
   const balanceDue = useMemo(() => {
     return Math.max(0, totalAmount - advancePayment);
   }, [totalAmount, advancePayment]);
+
+  // Keep advancePayment updated based on paymentStatus
+  useEffect(() => {
+    if (paymentStatus === 'Paid') {
+      setAdvancePayment(totalAmount);
+    } else if (paymentStatus === 'Pending') {
+      setAdvancePayment(0);
+    }
+  }, [totalAmount, paymentStatus]);
 
   const handleAddProductToCart = (prod: Product) => {
     if (prod.stockQty <= 0) {
@@ -151,49 +164,57 @@ export const Billing: React.FC = () => {
       alert('Cart is empty.');
       return;
     }
+    if (isProcessing) return;
+    setIsProcessing(true);
 
-    const saleItemsInput = cart.map(item => {
-      const itemTotal = item.product.sellingPrice * item.quantity;
-      const gstAmt = itemTotal - (itemTotal / (1 + (item.product.gstRate / 100)));
-      return {
-        productId: item.product.id,
-        productName: item.product.name,
-        quantity: item.quantity,
-        sellingPrice: item.product.sellingPrice,
-        purchasePrice: item.product.purchasePrice,
-        gstRate: item.product.gstRate,
-        gstAmount: gstAmt,
-        total: itemTotal
-      };
-    });
+    try {
+      const saleItemsInput = cart.map(item => {
+        const itemTotal = item.product.sellingPrice * item.quantity;
+        const gstAmt = itemTotal - (itemTotal / (1 + (item.product.gstRate / 100)));
+        return {
+          productId: item.product.id,
+          productName: item.product.name,
+          quantity: item.quantity,
+          sellingPrice: item.product.sellingPrice,
+          purchasePrice: item.product.purchasePrice,
+          gstRate: item.product.gstRate,
+          gstAmount: gstAmt,
+          total: itemTotal
+        };
+      });
 
-    const paymentStatus = balanceDue === 0 ? 'Paid' : (advancePayment > 0 ? 'Partial' : 'Pending');
+      const paymentStatus = balanceDue === 0 ? 'Paid' : (advancePayment > 0 ? 'Partial' : 'Pending');
 
-    const result = db.recordSale(
-      {
-        customerId: selectedCustomer.id,
-        subtotal,
-        discount,
-        gstAmount,
-        deliveryCharge: Number(deliveryCharge),
-        installationCharge: Number(installationCharge),
-        advancePayment: Number(advancePayment),
-        balanceDue,
-        totalAmount,
-        paymentMethod,
-        paymentStatus,
-        createdBy: currentUser?.id || 'unknown'
-      },
-      saleItemsInput
-    );
+      const result = db.recordSale(
+        {
+          customerId: selectedCustomer.id,
+          subtotal,
+          discount,
+          gstAmount,
+          deliveryCharge: Number(deliveryCharge),
+          installationCharge: Number(installationCharge),
+          advancePayment: Number(advancePayment),
+          balanceDue,
+          totalAmount,
+          paymentMethod,
+          paymentStatus,
+          createdBy: currentUser?.id || 'unknown'
+        },
+        saleItemsInput
+      );
 
-    // Save for print dialog
-    const saleItems = db.getSaleItems().filter(si => si.saleId === result.id);
-    setSavedSale(result);
-    setSavedSaleItems(saleItems);
+      // Save for print dialog
+      const saleItems = db.getSaleItems().filter(si => si.saleId === result.id);
+      setSavedSale(result);
+      setSavedSaleItems(saleItems);
 
-    triggerDbUpdate();
-    setOpenPrintDialog(true);
+      triggerDbUpdate();
+      setOpenPrintDialog(true);
+    } catch (error) {
+      console.error('Checkout failed:', error);
+      alert('Checkout failed. Please try again.');
+      setIsProcessing(false);
+    }
   };
 
   // Clear POS
@@ -208,6 +229,8 @@ export const Billing: React.FC = () => {
     setSavedSale(null);
     setSavedSaleItems([]);
     setOpenPrintDialog(false);
+    setPaymentStatus('Paid');
+    setIsProcessing(false);
   };
 
   const handlePrint = () => {
@@ -390,10 +413,43 @@ export const Billing: React.FC = () => {
 
               <TextField
                 fullWidth
+                select
+                label="Payment Status"
+                value={paymentStatus}
+                onChange={(e) => {
+                  const val = e.target.value as 'Paid' | 'Pending' | 'Partial';
+                  setPaymentStatus(val);
+                  if (val === 'Paid') {
+                    setAdvancePayment(totalAmount);
+                  } else if (val === 'Pending') {
+                    setAdvancePayment(0);
+                  }
+                }}
+                size="small"
+                sx={{ mt: 1 }}
+              >
+                <MenuItem value="Paid">Paid</MenuItem>
+                <MenuItem value="Pending">Pending / Unpaid</MenuItem>
+                <MenuItem value="Partial">Partial Payment</MenuItem>
+              </TextField>
+
+              <TextField
+                fullWidth
                 label="Advance Payment / Amount Paid (₹)"
                 type="number"
                 value={advancePayment}
-                onChange={(e) => setAdvancePayment(Math.max(0, Number(e.target.value)))}
+                onChange={(e) => {
+                  const val = Math.max(0, Number(e.target.value));
+                  setAdvancePayment(val);
+                  if (val === totalAmount) {
+                    setPaymentStatus('Paid');
+                  } else if (val === 0) {
+                    setPaymentStatus('Pending');
+                  } else {
+                    setPaymentStatus('Partial');
+                  }
+                }}
+                disabled={paymentStatus !== 'Partial'}
                 size="small"
               />
 
@@ -422,11 +478,12 @@ export const Billing: React.FC = () => {
                 color="secondary"
                 size="large"
                 fullWidth
-                startIcon={<Print />}
+                startIcon={isProcessing ? undefined : <Print />}
                 onClick={handleCheckout}
+                disabled={isProcessing}
                 sx={{ mt: 2, height: 48 }}
               >
-                Checkout & Print Invoice
+                {isProcessing ? 'Processing...' : 'Checkout & Print Invoice'}
               </Button>
             </Box>
           </Paper>

@@ -1206,5 +1206,167 @@ export const db = {
       console.error(e);
       return false;
     }
+  },
+
+  deleteSaleSilent: (id: string) => {
+    const salesList = db.getSales();
+    const sale = salesList.find(s => s.id === id);
+    if (sale) {
+      // 1. Revert customer outstanding balance if there was balance due
+      if (sale.balanceDue > 0) {
+        const customerList = db.getCustomers();
+        const cIdx = customerList.findIndex(c => c.id === sale.customerId);
+        if (cIdx >= 0) {
+          customerList[cIdx].outstandingBalance = Math.max(0, customerList[cIdx].outstandingBalance - sale.balanceDue);
+          localStorage.setItem('dc_customers', JSON.stringify(customerList));
+          supabase.from('customers').upsert(customerList[cIdx]).then(({ error }) => {
+            if (error) console.error('Failed to sync customer balance update on sale deletion:', error);
+          });
+        }
+      }
+      
+      // 2. Revert product stock quantities
+      const saleItemsList = db.getSaleItems();
+      const itemsToRevert = saleItemsList.filter(si => si.saleId === id);
+      const productsList = db.getProducts();
+      itemsToRevert.forEach(item => {
+        const pIdx = productsList.findIndex(p => p.id === item.productId);
+        if (pIdx >= 0) {
+          productsList[pIdx].stockQty += item.quantity;
+        }
+      });
+      localStorage.setItem('dc_products', JSON.stringify(productsList));
+      productsList.forEach(p => {
+        supabase.from('products').upsert(p).then(({ error }) => {
+          if (error) console.error('Failed to sync product stock update on sale deletion:', error);
+        });
+      });
+    }
+
+    // 3. Update localStorage for all related tables
+    localStorage.setItem('dc_sales', JSON.stringify(db.getSales().filter(s => s.id !== id)));
+    localStorage.setItem('dc_sale_items', JSON.stringify(db.getSaleItems().filter(si => si.saleId !== id)));
+    localStorage.setItem('dc_deliveries', JSON.stringify(db.getDeliveries().filter(d => d.saleId !== id)));
+    localStorage.setItem('dc_stock_transactions', JSON.stringify(db.getStockTransactions().filter(t => t.referenceId !== id)));
+
+    // 4. Sync deletions to Supabase
+    supabase.from('sales').delete().eq('id', id).then(({ error }) => {
+      if (error) console.error('Failed to sync sale deletion:', error);
+    });
+    supabase.from('sale_items').delete().eq('saleId', id).then(({ error }) => {
+      if (error) console.error('Failed to sync sale items deletion:', error);
+    });
+    supabase.from('deliveries').delete().eq('saleId', id).then(({ error }) => {
+      if (error) console.error('Failed to sync delivery deletion:', error);
+    });
+    supabase.from('stock_transactions').delete().eq('referenceId', id).then(({ error }) => {
+      if (error) console.error('Failed to sync stock transaction deletion:', error);
+    });
+  },
+
+  deleteSale: (id: string) => {
+    db.deleteSaleSilent(id);
+  },
+
+  cleanupDuplicateSales: () => {
+    const salesStr = localStorage.getItem('dc_sales');
+    if (!salesStr) return;
+    const sales: Sale[] = JSON.parse(salesStr);
+    const duplicatesToDelete: string[] = [];
+    const processed = new Set<string>();
+
+    for (let i = 0; i < sales.length; i++) {
+      const s1 = sales[i];
+      if (processed.has(s1.id)) continue;
+
+      for (let j = i + 1; j < sales.length; j++) {
+        const s2 = sales[j];
+        if (processed.has(s2.id)) continue;
+
+        const isSameCustomer = s1.customerId === s2.customerId;
+        const isSameTotal = s1.totalAmount === s2.totalAmount;
+        const timeDiff = Math.abs(new Date(s1.saleDate).getTime() - new Date(s2.saleDate).getTime());
+        const isWithinTime = timeDiff < 120000; // 2 minutes
+
+        if (isSameCustomer && isSameTotal && isWithinTime) {
+          // We found duplicates!
+          // Decide which one to keep
+          let toKeep = s1;
+          let toDelete = s2;
+
+          if (s2.paymentStatus === 'Paid' && s1.paymentStatus !== 'Paid') {
+            toKeep = s2;
+            toDelete = s1;
+          }
+
+          duplicatesToDelete.push(toDelete.id);
+          processed.add(s1.id);
+          processed.add(s2.id);
+          break;
+        }
+      }
+    }
+
+    if (duplicatesToDelete.length > 0) {
+      console.log(`Auto-cleanup found duplicate sales to delete:`, duplicatesToDelete);
+      duplicatesToDelete.forEach(id => {
+        db.deleteSaleSilent(id);
+      });
+    }
+  },
+
+  updateSaleStatus: (saleId: string, newStatus: 'Paid' | 'Pending' | 'Partial') => {
+    const salesList = db.getSales();
+    const idx = salesList.findIndex(s => s.id === saleId);
+    if (idx >= 0) {
+      const sale = salesList[idx];
+      const oldStatus = sale.paymentStatus;
+      const oldBalanceDue = sale.balanceDue;
+      
+      if (oldStatus === newStatus) return;
+
+      // 1. Calculate new balance due and advance payment
+      let newBalanceDue = 0;
+      let newAdvancePayment = sale.totalAmount;
+
+      if (newStatus === 'Pending') {
+        newBalanceDue = sale.totalAmount;
+        newAdvancePayment = 0;
+      } else if (newStatus === 'Partial') {
+        if (oldStatus === 'Paid') {
+          newAdvancePayment = Math.floor(sale.totalAmount / 2);
+          newBalanceDue = sale.totalAmount - newAdvancePayment;
+        } else {
+          newAdvancePayment = sale.advancePayment || Math.floor(sale.totalAmount / 2);
+          newBalanceDue = sale.totalAmount - newAdvancePayment;
+        }
+      }
+
+      // 2. Adjust customer outstanding balance
+      const customerList = db.getCustomers();
+      const cIdx = customerList.findIndex(c => c.id === sale.customerId);
+      if (cIdx >= 0) {
+        customerList[cIdx].outstandingBalance = Math.max(
+          0,
+          customerList[cIdx].outstandingBalance - oldBalanceDue + newBalanceDue
+        );
+        localStorage.setItem('dc_customers', JSON.stringify(customerList));
+        supabase.from('customers').upsert(customerList[cIdx]).then(({ error }) => {
+          if (error) console.error('Failed to sync customer balance update on sale status change:', error);
+        });
+      }
+
+      // 3. Update sale fields
+      sale.paymentStatus = newStatus;
+      sale.balanceDue = newBalanceDue;
+      sale.advancePayment = newAdvancePayment;
+      salesList[idx] = sale;
+      localStorage.setItem('dc_sales', JSON.stringify(salesList));
+
+      // 4. Sync sale to Supabase
+      supabase.from('sales').upsert(sale).then(({ error }) => {
+        if (error) console.error('Failed to sync sale status change to Supabase:', error);
+      });
+    }
   }
 };

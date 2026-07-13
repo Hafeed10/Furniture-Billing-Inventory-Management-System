@@ -14,14 +14,30 @@ import {
   Button, 
   Grid,
   Card,
-  CardContent
+  CardContent,
+  IconButton,
+  TextField,
+  MenuItem
 } from '@mui/material';
-import { Download } from '@mui/icons-material';
+import { Download, Delete } from '@mui/icons-material';
 import { db } from '../db/db';
 import { useAppStore } from '../store/store';
 
 export const Reports: React.FC = () => {
   const dbRevision = useAppStore(state => state.dbRevision);
+  const triggerDbUpdate = useAppStore(state => state.triggerDbUpdate);
+
+  const handleDeleteSale = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this invoice? This will revert customer balances, product stock quantities, and remove all associated records.')) {
+      db.deleteSale(id);
+      triggerDbUpdate();
+    }
+  };
+
+  const handleStatusChange = (saleId: string, newStatus: 'Paid' | 'Pending' | 'Partial') => {
+    db.updateSaleStatus(saleId, newStatus);
+    triggerDbUpdate();
+  };
 
   const [activeTab, setActiveTab] = useState(0);
 
@@ -53,6 +69,7 @@ export const Reports: React.FC = () => {
     return sales.map(s => {
       const cust = customers.find(c => c.id === s.customerId);
       return {
+        id: s.id,
         invoiceNumber: s.invoiceNumber,
         customerName: cust?.name || 'Walk-in',
         date: new Date(s.saleDate).toLocaleDateString('en-IN'),
@@ -243,6 +260,7 @@ export const Reports: React.FC = () => {
                 <TableCell align="right">GST Collected</TableCell>
                 <TableCell align="right">Grand Total</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -255,12 +273,41 @@ export const Reports: React.FC = () => {
                   <TableCell align="right">₹{d.discount.toLocaleString('en-IN')}</TableCell>
                   <TableCell align="right">₹{d.gst.toFixed(2)}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>₹{d.total.toLocaleString('en-IN')}</TableCell>
-                  <TableCell>{d.status}</TableCell>
+                  <TableCell>
+                    <TextField
+                      select
+                      value={d.status}
+                      onChange={(e) => handleStatusChange(d.id, e.target.value as 'Paid' | 'Pending' | 'Partial')}
+                      size="small"
+                      variant="standard"
+                      sx={{ 
+                        width: 105,
+                        '& .MuiInput-underline:before': { borderBottom: 'none' },
+                        '& .MuiInput-underline:after': { borderBottom: 'none' },
+                        '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottom: 'none' },
+                        '& .MuiSelect-select': {
+                          py: 0.5,
+                          fontWeight: 700,
+                          fontSize: '0.875rem',
+                          color: d.status === 'Paid' ? 'success.main' : d.status === 'Partial' ? 'warning.main' : 'error.main'
+                        }
+                      }}
+                    >
+                      <MenuItem value="Paid">Paid</MenuItem>
+                      <MenuItem value="Pending">Pending</MenuItem>
+                      <MenuItem value="Partial">Partial</MenuItem>
+                    </TextField>
+                  </TableCell>
+                  <TableCell align="center">
+                    <IconButton size="small" color="error" onClick={() => handleDeleteSale(d.id)}>
+                      <Delete />
+                    </IconButton>
+                  </TableCell>
                 </TableRow>
               ))}
               {salesReportData.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">No sales recorded</TableCell>
+                  <TableCell colSpan={9} align="center">No sales recorded</TableCell>
                 </TableRow>
               )}
             </TableBody>
