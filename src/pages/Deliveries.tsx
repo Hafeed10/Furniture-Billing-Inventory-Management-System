@@ -1,31 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Box, 
-  Typography, 
-  Paper, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
-  TableRow, 
-  Button, 
   TextField, 
   Dialog, 
   DialogTitle, 
   DialogContent, 
   DialogActions,
-  Grid,
-  Chip,
   MenuItem,
   InputAdornment,
   IconButton,
   Menu,
-  Avatar,
-  LinearProgress,
-  Tooltip,
-  Card,
-  CardContent
+  Tooltip
 } from '@mui/material';
 import { 
   Edit, 
@@ -69,6 +53,7 @@ const getCoordinates = (id: string, name: string) => {
 export const Deliveries: React.FC = () => {
   const dbRevision = useAppStore(state => state.dbRevision);
   const triggerDbUpdate = useAppStore(state => state.triggerDbUpdate);
+  const themeMode = useAppStore(state => state.themeMode);
 
   const deliveries = useMemo(() => db.getDeliveries(), [dbRevision]);
   const sales = useMemo(() => db.getSales(), [dbRevision]);
@@ -297,714 +282,648 @@ export const Deliveries: React.FC = () => {
     return deliveries.filter(d => d.installationStatus === 'Pending').length;
   }, [deliveries]);
 
+  // Bottom metrics list helper for deduplicated mapping
+  const metrics = useMemo(() => [
+    {
+      title: 'Fuel Performance',
+      value: `$${(totalDeliveryRevenue || 1240).toLocaleString()}`,
+      subtext: '-4% v. last week',
+      subtextColor: 'text-emerald-600 dark:text-emerald-400',
+      icon: <LocalGasStation className="w-6 h-6" />,
+      iconBg: 'bg-blue-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+    },
+    {
+      title: 'Installation Queue',
+      value: `${pendingInstallationsCount + 17} Jobs`,
+      subtext: 'High Demand',
+      subtextColor: 'text-rose-600 dark:text-rose-400',
+      icon: <Build className="w-6 h-6" />,
+      iconBg: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400',
+    },
+    {
+      title: 'Avg. Rating',
+      value: '4.92',
+      subtext: '↑ 0.12 pts',
+      subtextColor: 'text-emerald-600 dark:text-emerald-400',
+      icon: <Star className="w-6 h-6" />,
+      iconBg: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    },
+  ], [totalDeliveryRevenue, pendingInstallationsCount]);
+
   return (
-    <Box sx={{ p: { xs: 1, sm: 2 } }}>
+    <div className="p-2 sm:p-4 text-slate-900 dark:text-slate-100">
       
       {/* Subheader bar with title and search */}
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: { xs: 'column', sm: 'row' },
-        justifyContent: 'space-between', 
-        alignItems: { xs: 'stretch', sm: 'center' },
-        gap: 2,
-        mb: 4 
-      }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, color: 'primary.dark' }}>
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 mb-8">
+        <h1 className="text-3xl font-extrabold tracking-tight text-indigo-700 dark:text-indigo-400">
           Delivery Management
-        </Typography>
+        </h1>
 
-        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
+        <div className="flex gap-3 items-center w-full sm:w-auto">
           <TextField
             size="small"
             placeholder="Search orders, customers, or drivers..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            sx={{ 
-              width: { xs: '100%', sm: 320 }, 
-              '& .MuiOutlinedInput-root': { borderRadius: '50px', bgcolor: 'background.paper' } 
+            className="w-full sm:w-80 bg-white dark:bg-slate-900 rounded-full border border-slate-200 dark:border-slate-800"
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '9999px',
+                '& fieldset': { border: 'none' }
+              }
             }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <Search fontSize="small" color="action" />
+                  <Search fontSize="small" className="text-slate-400 dark:text-slate-500" />
                 </InputAdornment>
               ),
             }}
           />
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* Main Grid */}
-      <Grid container spacing={3}>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Live Dispatch Map */}
-        <Grid item xs={12} lg={8.2}>
-          <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Live Dispatch Map
-              </Typography>
-              <Chip 
-                label={`${mapDrivers.length} Active Drivers`} 
-                size="small" 
-                sx={{ 
-                  bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(52, 211, 153, 0.15)' : '#e6fbf3', 
-                  color: '#059669', 
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  border: '1px solid',
-                  borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(52, 211, 153, 0.3)' : 'rgba(5, 150, 105, 0.15)'
-                }} 
-              />
-            </Box>
+        <div className="lg:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs p-6">
+          <div className="flex justify-between items-center mb-5">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              Live Dispatch Map
+            </h2>
+            <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 dark:border-emerald-500/30">
+              {mapDrivers.length} Active Drivers
+            </span>
+          </div>
 
-            {/* Map Canvas */}
-            <Box sx={{ 
-              position: 'relative', 
-              width: '100%', 
-              height: 330, 
-              bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0d1424' : '#f0f3ff', 
-              borderRadius: 2, 
-              overflow: 'hidden',
-              boxShadow: 'inset 0 0 10px rgba(0,0,0,0.05)'
-            }}>
-              {/* Map SVG overlay representing city grid lines */}
-              <svg width="100%" height="100%" style={{ pointerEvents: 'none' }}>
-                <defs>
-                  <linearGradient id="riverGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.5" />
-                  </linearGradient>
-                </defs>
-                
-                {/* River */}
-                <path d="M -50,160 Q 250,90 450,260 T 900,180" fill="none" stroke="url(#riverGrad)" strokeWidth="32" />
-                
-                {/* Parks */}
-                <rect x="60" y="30" width="130" height="90" rx="12" fill="#d1fae5" opacity={0.4} />
-                <rect x="640" y="270" width="110" height="90" rx="12" fill="#d1fae5" opacity={0.4} />
+          {/* Map Canvas */}
+          <div className="relative w-full h-[330px] bg-blue-50 dark:bg-slate-950 rounded-xl overflow-hidden shadow-inner border border-slate-100 dark:border-slate-800">
+            {/* Map SVG overlay representing city grid lines */}
+            <svg width="100%" height="100%" style={{ pointerEvents: 'none' }}>
+              <defs>
+                <linearGradient id="riverGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.5" />
+                </linearGradient>
+              </defs>
+              
+              {/* River */}
+              <path d="M -50,160 Q 250,90 450,260 T 900,180" fill="none" stroke="url(#riverGrad)" strokeWidth="32" />
+              
+              {/* Parks */}
+              <rect x="60" y="30" width="130" height="90" rx="12" fill="#d1fae5" opacity={0.4} />
+              <rect x="640" y="270" width="110" height="90" rx="12" fill="#d1fae5" opacity={0.4} />
 
-                {/* Roads */}
-                <path d="M 120,-20 L 120,420" fill="none" stroke={(theme) => theme.palette.mode === 'dark' ? '#1e293b' : '#e2e8f0'} strokeWidth="10" />
-                <path d="M -20,220 L 850,220" fill="none" stroke={(theme) => theme.palette.mode === 'dark' ? '#1e293b' : '#e2e8f0'} strokeWidth="10" />
-                <path d="M 520,-20 L 520,420" fill="none" stroke={(theme) => theme.palette.mode === 'dark' ? '#1e293b' : '#e2e8f0'} strokeWidth="10" />
-                
-                <path d="M -20,70 L 850,330" fill="none" stroke={(theme) => theme.palette.mode === 'dark' ? '#1e293b' : '#e2e8f0'} strokeWidth="5" opacity="0.8" />
-                <path d="M 300,-20 L 300,420" fill="none" stroke={(theme) => theme.palette.mode === 'dark' ? '#1e293b' : '#f1f5f9'} strokeWidth="3" strokeDasharray="6,4" />
-                <path d="M -20,130 L 850,130" fill="none" stroke={(theme) => theme.palette.mode === 'dark' ? '#1e293b' : '#f1f5f9'} strokeWidth="3" strokeDasharray="6,4" />
-                <path d="M -20,300 L 850,300" fill="none" stroke={(theme) => theme.palette.mode === 'dark' ? '#1e293b' : '#f1f5f9'} strokeWidth="3" strokeDasharray="6,4" />
-              </svg>
+              {/* Roads */}
+              <path d="M 120,-20 L 120,420" fill="none" stroke={themeMode === 'dark' ? '#1e293b' : '#e2e8f0'} strokeWidth="10" />
+              <path d="M -20,220 L 850,220" fill="none" stroke={themeMode === 'dark' ? '#1e293b' : '#e2e8f0'} strokeWidth="10" />
+              <path d="M 520,-20 L 520,420" fill="none" stroke={themeMode === 'dark' ? '#1e293b' : '#e2e8f0'} strokeWidth="10" />
+              
+              <path d="M -20,70 L 850,330" fill="none" stroke={themeMode === 'dark' ? '#1e293b' : '#e2e8f0'} strokeWidth="5" opacity="0.8" />
+              <path d="M 300,-20 L 300,420" fill="none" stroke={themeMode === 'dark' ? '#1e293b' : '#f1f5f9'} strokeWidth="3" strokeDasharray="6,4" />
+              <path d="M -20,130 L 850,130" fill="none" stroke={themeMode === 'dark' ? '#1e293b' : '#f1f5f9'} strokeWidth="3" strokeDasharray="6,4" />
+              <path d="M -20,300 L 850,300" fill="none" stroke={themeMode === 'dark' ? '#1e293b' : '#f1f5f9'} strokeWidth="3" strokeDasharray="6,4" />
+            </svg>
 
-              {/* Driver Pulse Pins */}
-              {mapDrivers.map((driver) => {
-                const zoomFactor = mapZoom === 1 ? 0.75 : mapZoom === 2 ? 1 : 1.35;
-                const scaledX = (driver.x - 400) * zoomFactor + 400;
-                const scaledY = (driver.y - 200) * zoomFactor + 200;
+            {/* Driver Pulse Pins */}
+            {mapDrivers.map((driver) => {
+              const zoomFactor = mapZoom === 1 ? 0.75 : mapZoom === 2 ? 1 : 1.35;
+              const scaledX = (driver.x - 400) * zoomFactor + 400;
+              const scaledY = (driver.y - 200) * zoomFactor + 200;
 
-                // Only render inside bounding box
-                if (scaledX < 0 || scaledX > 800 || scaledY < 0 || scaledY > 330) return null;
+              // Only render inside bounding box
+              if (scaledX < 0 || scaledX > 800 || scaledY < 0 || scaledY > 330) return null;
 
-                const isShipped = driver.status === 'Shipped';
-                const pulseColor = isShipped ? '#d97706' : '#2563eb'; // Orange for Out for Delivery, Blue for Scheduled
+              const isShipped = driver.status === 'Shipped';
+              const pulseColor = isShipped ? '#d97706' : '#2563eb'; // Orange for Out for Delivery, Blue for Scheduled
 
-                return (
-                  <Tooltip 
-                    title={`${driver.driverName} - ${driver.invoice} for ${driver.customerName}`}
-                    key={driver.id}
-                    arrow
-                  >
-                    <Box sx={{
-                      position: 'absolute',
+              return (
+                <Tooltip 
+                  title={`${driver.driverName} - ${driver.invoice} for ${driver.customerName}`}
+                  key={driver.id}
+                  arrow
+                >
+                  <div 
+                    className="absolute cursor-pointer z-5 hover:z-10 group"
+                    style={{
                       left: `${(scaledX / 800) * 100}%`,
                       top: `${(scaledY / 330) * 100}%`,
                       transform: 'translate(-50%, -50%)',
-                      cursor: 'pointer',
-                      zIndex: 5,
-                      '&:hover': { zIndex: 10 }
-                    }}>
-                      
-                      {/* Pulse Circle */}
-                      <Box sx={{
-                        position: 'absolute',
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        bgcolor: pulseColor,
-                        opacity: 0.35,
-                        left: -8,
-                        top: -8,
-                        animation: 'pulse 1.8s infinite ease-in-out',
-                        '@keyframes pulse': {
-                          '0%': { transform: 'scale(0.5)', opacity: 0.8 },
-                          '100%': { transform: 'scale(2.2)', opacity: 0 }
-                        }
-                      }} />
+                    }}
+                  >
+                    
+                    {/* Pulse Circle */}
+                    <div 
+                      className="absolute w-7 h-7 rounded-full opacity-40 -left-2 -top-2 animate-ping"
+                      style={{ backgroundColor: pulseColor }}
+                    />
 
-                      {/* Small Dot */}
-                      <Box sx={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: '50%',
-                        bgcolor: pulseColor,
-                        border: '2px solid white',
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
-                      }} />
+                    {/* Small Dot */}
+                    <div 
+                      className="w-3 h-3 rounded-full border-2 border-white shadow-md"
+                      style={{ backgroundColor: pulseColor }}
+                    />
 
-                      {/* Small label above dot */}
-                      <Paper sx={{
-                        position: 'absolute',
-                        top: -28,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        px: 1,
-                        py: 0.25,
-                        borderRadius: 1,
-                        boxShadow: 2,
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        whiteSpace: 'nowrap',
-                        pointerEvents: 'none'
-                      }}>
-                        <Typography sx={{ fontSize: '9.5px', fontWeight: 700 }}>
-                          {driver.driverName.split(' ')[0]} ({driver.invoice})
-                        </Typography>
-                      </Paper>
+                    {/* Small label above dot */}
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-md text-[9.5px] font-bold whitespace-nowrap pointer-events-none text-slate-700 dark:text-slate-200">
+                      {driver.driverName.split(' ')[0]} ({driver.invoice})
+                    </div>
 
-                    </Box>
-                  </Tooltip>
-                );
-              })}
+                  </div>
+                </Tooltip>
+              );
+            })}
 
-              {/* Map Zoom Controls */}
-              <Paper sx={{ 
-                position: 'absolute', 
-                right: 16, 
-                top: 16, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                gap: 0.5, 
-                p: 0.5,
-                borderRadius: 2,
-                boxShadow: 3
-              }}>
-                <IconButton 
-                  size="small" 
-                  disabled={mapZoom >= 3} 
-                  onClick={() => setMapZoom(prev => prev + 1)}
-                  color="primary"
-                >
-                  <ZoomIn fontSize="small" />
-                </IconButton>
-                <IconButton 
-                  size="small" 
-                  disabled={mapZoom <= 1} 
-                  onClick={() => setMapZoom(prev => prev - 1)}
-                  color="primary"
-                >
-                  <ZoomOut fontSize="small" />
-                </IconButton>
-              </Paper>
-            </Box>
-          </Paper>
-        </Grid>
+            {/* Map Zoom Controls */}
+            <div className="absolute right-4 top-4 flex flex-col gap-1 p-1 bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700">
+              <IconButton 
+                size="small" 
+                disabled={mapZoom >= 3} 
+                onClick={() => setMapZoom(prev => prev + 1)}
+                color="primary"
+                className="text-indigo-650 dark:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                <ZoomIn fontSize="small" />
+              </IconButton>
+              <IconButton 
+                size="small" 
+                disabled={mapZoom <= 1} 
+                onClick={() => setMapZoom(prev => prev - 1)}
+                color="primary"
+                className="text-indigo-650 dark:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                <ZoomOut fontSize="small" />
+              </IconButton>
+            </div>
+          </div>
+        </div>
 
         {/* Efficiency Goal Card */}
-        <Grid item xs={12} lg={3.8}>
-          <Card sx={{ 
-            height: '100%', 
-            borderRadius: 3, 
-            background: 'linear-gradient(135deg, #022c83 0%, #004dcf 100%)', 
-            color: 'white',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            boxShadow: '0 8px 30px rgba(0,77,207,0.2)'
-          }}>
-            <CardContent sx={{ p: 4, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <Box>
-                <Typography variant="overline" sx={{ letterSpacing: 1.5, opacity: 0.8, fontWeight: 700, display: 'block', mb: 2 }}>
-                  Efficiency Goal
-                </Typography>
-                
-                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1.5 }}>
-                  <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: -1 }}>
-                    94.2%
-                  </Typography>
-                </Box>
+        <div className="lg:col-span-4 bg-gradient-to-br from-[#022c83] to-[#004dcf] dark:from-slate-900 dark:to-indigo-950 text-white rounded-2xl shadow-lg border border-transparent dark:border-slate-800 p-8 flex flex-col justify-between min-h-[380px]">
+          <div>
+            <span className="block text-xs font-bold uppercase tracking-wider opacity-80 mb-4">
+              Efficiency Goal
+            </span>
+            
+            <div className="flex items-baseline gap-1 mb-4">
+              <span className="text-5xl font-extrabold tracking-tight">
+                94.2%
+              </span>
+            </div>
 
-                <LinearProgress 
-                  variant="determinate" 
-                  value={94.2} 
-                  sx={{ 
-                    height: 8, 
-                    borderRadius: 4, 
-                    bgcolor: 'rgba(255,255,255,0.2)',
-                    '& .MuiLinearProgress-bar': { bgcolor: '#ffffff', borderRadius: 4 },
-                    mb: 3
-                  }} 
-                />
+            {/* Progress bar styled in Tailwind */}
+            <div className="h-2 w-full bg-white/20 rounded-full overflow-hidden mb-5">
+              <div className="h-full bg-white rounded-full transition-all duration-500" style={{ width: '94.2%' }}></div>
+            </div>
 
-                <Typography variant="body2" sx={{ opacity: 0.9, lineHeight: 1.6, fontWeight: 500 }}>
-                  Optimized routes saved 124km of fuel today.
-                </Typography>
-              </Box>
+            <p className="text-sm opacity-90 leading-relaxed font-medium">
+              Optimized routes saved 124km of fuel today.
+            </p>
+          </div>
 
-              <Box sx={{ mt: 4 }}>
-                <Button 
-                  variant="outlined" 
-                  fullWidth
-                  onClick={() => setLogsOpen(true)}
-                  sx={{ 
-                    color: 'white', 
-                    borderColor: 'rgba(255,255,255,0.5)',
-                    '&:hover': { 
-                      borderColor: 'white', 
-                      bgcolor: 'rgba(255,255,255,0.08)' 
-                    },
-                    py: 1.2,
-                    fontWeight: 700
-                  }}
-                >
-                  View Route Logs
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+          <div className="mt-8">
+            <button 
+              onClick={() => setLogsOpen(true)}
+              className="w-full py-2.5 px-4 rounded-lg border border-white/50 hover:border-white bg-transparent hover:bg-white/10 text-white font-bold transition duration-200 cursor-pointer text-sm"
+            >
+              View Route Logs
+            </button>
+          </div>
+        </div>
 
         {/* Active Deliveries */}
-        <Grid item xs={12}>
-          <Paper sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-            
-            {/* Header of Active Deliveries */}
-            <Box sx={{ 
-              display: 'flex', 
-              flexDirection: { xs: 'column', md: 'row' }, 
-              justifyContent: 'space-between', 
-              alignItems: { xs: 'stretch', md: 'center' }, 
-              gap: 2,
-              p: 3, 
-              borderBottom: '1px solid',
-              borderColor: 'divider'
-            }}>
-              <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                Active Deliveries
-              </Typography>
+        <div className="col-span-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
+          
+          {/* Header of Active Deliveries */}
+          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 p-6 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">
+              Active Deliveries
+            </h2>
 
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
-                
-                {/* Date Filter */}
-                <TextField
-                  size="small"
-                  type="date"
-                  label="Filter Date"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ width: 160 }}
-                  InputProps={{
+            <div className="flex flex-wrap gap-4 items-center">
+              
+              {/* Date Filter */}
+              <TextField
+                size="small"
+                type="date"
+                label="Filter Date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  input: {
                     startAdornment: (
                       <InputAdornment position="start">
                         <CalendarToday fontSize="small" />
                       </InputAdornment>
                     ),
-                  }}
-                />
+                  }
+                }}
+                className="w-40 bg-white dark:bg-slate-800 rounded-lg text-slate-900 dark:text-slate-100"
+              />
 
-                {/* Status Filter */}
-                <TextField
-                  select
-                  size="small"
-                  label="Status"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                  sx={{ width: 160 }}
-                  InputProps={{
+              {/* Status Filter */}
+              <TextField
+                select
+                size="small"
+                label="Status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="w-40 bg-white dark:bg-slate-800 rounded-lg text-slate-900 dark:text-slate-100"
+                slotProps={{
+                  input: {
                     startAdornment: (
                       <InputAdornment position="start">
                         <FilterList fontSize="small" />
                       </InputAdornment>
                     ),
-                  }}
-                >
-                  <MenuItem value="All">All Statuses</MenuItem>
-                  <MenuItem value="Scheduled">Scheduled</MenuItem>
-                  <MenuItem value="Out for Delivery">Out for Delivery</MenuItem>
-                  <MenuItem value="Delivered">Delivered</MenuItem>
-                </TextField>
+                  }
+                }}
+              >
+                <MenuItem value="All">All Statuses</MenuItem>
+                <MenuItem value="Scheduled">Scheduled</MenuItem>
+                <MenuItem value="Out for Delivery">Out for Delivery</MenuItem>
+                <MenuItem value="Delivered">Delivered</MenuItem>
+              </TextField>
 
-                {/* Export manifest */}
-                <Button
-                  variant="contained"
-                  startIcon={<Download />}
-                  onClick={handleExportCSV}
-                  sx={{ 
-                    bgcolor: '#003db3', 
-                    fontWeight: 700,
-                    px: 2.5,
-                    py: 1,
-                    '&:hover': { bgcolor: '#002f8c' } 
-                  }}
-                >
-                  Export Manifest
-                </Button>
-              </Box>
-            </Box>
+              {/* Export manifest */}
+              <button
+                onClick={handleExportCSV}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white font-bold transition duration-200 cursor-pointer text-sm shadow-xs"
+              >
+                <Download className="w-4 h-4" />
+                Export Manifest
+              </button>
+            </div>
+          </div>
 
-            {/* Deliveries Table */}
-            <TableContainer>
-              <Table sx={{ minWidth: 800 }}>
-                <TableHead sx={{ bgcolor: 'action.hover' }}>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>Order #</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Customer</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Driver</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Installation</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 700 }}>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredDeliveries.map((del) => {
-                    const sale = sales.find(s => s.id === del.saleId);
-                    const customer = sale ? customers.find(c => c.id === sale.customerId) : null;
-                    
-                    // Parse area from address to make it clean
-                    const addressParts = del.deliveryAddress.split(',');
-                    const cleanArea = addressParts.length > 2 
-                      ? `${addressParts[0].trim()}, ${addressParts[1].trim()}` 
-                      : del.deliveryAddress;
+          {/* Deliveries Table */}
+          <div className="overflow-x-auto w-full">
+            <table className="min-w-[800px] w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold">
+                  <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider">Order #</th>
+                  <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider">Customer</th>
+                  <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider">Driver</th>
+                  <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider">Installation</th>
+                  <th className="px-6 py-4 font-bold text-xs uppercase tracking-wider text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {filteredDeliveries.map((del) => {
+                  const sale = sales.find(s => s.id === del.saleId);
+                  const customer = sale ? customers.find(c => c.id === sale.customerId) : null;
+                  
+                  // Parse area from address to make it clean
+                  const addressParts = del.deliveryAddress.split(',');
+                  const cleanArea = addressParts.length > 2 
+                    ? `${addressParts[0].trim()}, ${addressParts[1].trim()}` 
+                    : del.deliveryAddress;
 
-                    // Format Status Badge
-                    const getStatusChip = (status: typeof del.status) => {
-                      if (status === 'Pending') {
-                        return (
-                          <Chip 
-                            label="Scheduled" 
-                            size="small" 
-                            sx={{ bgcolor: '#e0f2fe', color: '#0369a1', fontWeight: 700, borderRadius: '6px' }} 
-                          />
-                        );
-                      }
-                      if (status === 'Shipped') {
-                        return (
-                          <Chip 
-                            label="Out for Delivery" 
-                            size="small" 
-                            sx={{ bgcolor: '#fef3c7', color: '#d97706', fontWeight: 700, borderRadius: '6px' }} 
-                          />
-                        );
-                      }
+                  // Format Status Badge
+                  const getStatusBadge = (status: typeof del.status) => {
+                    if (status === 'Pending') {
                       return (
-                        <Chip 
-                          label="Delivered" 
-                          size="small" 
-                          sx={{ bgcolor: '#d1fae5', color: '#059669', fontWeight: 700, borderRadius: '6px' }} 
-                        />
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border border-sky-100 dark:border-sky-900/30">
+                          Scheduled
+                        </span>
                       );
-                    };
-
-                    // Format Installation Status UI representation
-                    const getInstallationDisplay = () => {
-                      if (sale?.installationCharge === 0) {
-                        return (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
-                            <RadioButtonUnchecked fontSize="small" sx={{ color: 'text.disabled' }} />
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>Not Required</Typography>
-                          </Box>
-                        );
-                      }
-                      if (del.installationStatus === 'Installed') {
-                        return (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#059669' }}>
-                            <CheckCircle fontSize="small" />
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>Completed</Typography>
-                          </Box>
-                        );
-                      }
+                    }
+                    if (status === 'Shipped') {
                       return (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#002c83' }}>
-                          <CheckCircleOutline fontSize="small" />
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>Requested</Typography>
-                        </Box>
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30">
+                          Out for Delivery
+                        </span>
                       );
-                    };
-
+                    }
                     return (
-                      <TableRow key={del.id} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
-                        
-                        {/* Order invoice # */}
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', cursor: 'pointer' }}>
-                            {sale?.invoiceNumber || 'ORD-XXXX'}
-                          </Typography>
-                        </TableCell>
-
-                        {/* Customer */}
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                            {customer?.name || 'Walk-in Customer'}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {cleanArea}
-                          </Typography>
-                        </TableCell>
-
-                        {/* Driver */}
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Avatar sx={{ width: 28, height: 28, bgcolor: 'action.selected', color: 'action.active' }}>
-                              <Person sx={{ width: 16, height: 16 }} />
-                            </Avatar>
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                              {del.driverName || 'Not Assigned'}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-
-                        {/* Status */}
-                        <TableCell>
-                          {getStatusChip(del.status)}
-                        </TableCell>
-
-                        {/* Installation */}
-                        <TableCell>
-                          {getInstallationDisplay()}
-                        </TableCell>
-
-                        {/* Actions menu */}
-                        <TableCell align="center">
-                          <IconButton size="small" onClick={(e) => handleMenuOpen(e, del)}>
-                            <MoreVert />
-                          </IconButton>
-                        </TableCell>
-
-                      </TableRow>
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30">
+                        Delivered
+                      </span>
                     );
-                  })}
+                  };
 
-                  {filteredDeliveries.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
-                        <Typography variant="body1" color="text.secondary">No matching deliveries found</Typography>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
+                  // Format Installation Status UI representation
+                  const getInstallationDisplay = () => {
+                    if (sale?.installationCharge === 0) {
+                      return (
+                        <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 font-medium">
+                          <RadioButtonUnchecked fontSize="small" className="text-slate-300 dark:text-slate-700" />
+                          <span>Not Required</span>
+                        </div>
+                      );
+                    }
+                    if (del.installationStatus === 'Installed') {
+                      return (
+                        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                          <CheckCircle fontSize="small" />
+                          <span>Completed</span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
+                        <CheckCircleOutline fontSize="small" />
+                        <span>Requested</span>
+                      </div>
+                    );
+                  };
 
-        {/* Bottom Metrics Cards */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2.5, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-            <Avatar sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : '#eff6ff', color: 'primary.main', width: 48, height: 48 }}>
-              <LocalGasStation />
-            </Avatar>
-            <Box>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
-                Fuel Performance
-              </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.25 }}>
-                ${(totalDeliveryRevenue || 1240).toLocaleString()}
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#059669', fontWeight: 600 }}>
-                -4% v. last week
-              </Typography>
-            </Box>
-          </Paper>
-        </Grid>
+                  return (
+                    <tr key={del.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition duration-150">
+                      
+                      {/* Order invoice # */}
+                      <td className="px-6 py-4 font-bold text-indigo-600 dark:text-indigo-400">
+                        {sale?.invoiceNumber || 'ORD-XXXX'}
+                      </td>
 
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2.5, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-            <Avatar sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2', color: '#dc2626', width: 48, height: 48 }}>
-              <Build />
-            </Avatar>
-            <Box>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
-                Installation Queue
-              </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.25 }}>
-                {pendingInstallationsCount + 17} Jobs
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#dc2626', fontWeight: 600 }}>
-                High Demand
-              </Typography>
-            </Box>
-          </Paper>
-        </Grid>
+                      {/* Customer */}
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-800 dark:text-slate-200">
+                          {customer?.name || 'Walk-in Customer'}
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          {cleanArea}
+                        </div>
+                      </td>
 
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2.5, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-            <Avatar sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(245, 158, 11, 0.15)' : '#fffbeb', color: '#d97706', width: 48, height: 48 }}>
-              <Star />
-            </Avatar>
-            <Box>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
-                Avg. Rating
-              </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.25 }}>
-                4.92
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#059669', fontWeight: 600 }}>
-                ↑ 0.12 pts
-              </Typography>
-            </Box>
-          </Paper>
-        </Grid>
+                      {/* Driver */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex items-center justify-center rounded-full w-7 h-7 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                            <Person className="w-4 h-4" />
+                          </div>
+                          <span className="font-medium text-slate-750 dark:text-slate-300">
+                            {del.driverName || 'Not Assigned'}
+                          </span>
+                        </div>
+                      </td>
 
-      </Grid>
+                      {/* Status */}
+                      <td className="px-6 py-4">
+                        {getStatusBadge(del.status)}
+                      </td>
+
+                      {/* Installation */}
+                      <td className="px-6 py-4">
+                        {getInstallationDisplay()}
+                      </td>
+
+                      {/* Actions menu */}
+                      <td className="px-6 py-4 text-center">
+                        <IconButton 
+                          size="small" 
+                          onClick={(e) => handleMenuOpen(e, del)}
+                          className="text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                          <MoreVert />
+                        </IconButton>
+                      </td>
+
+                    </tr>
+                  );
+                })}
+
+                {filteredDeliveries.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-12 text-slate-500 dark:text-slate-400 font-medium">
+                      No matching deliveries found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Bottom Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+        {metrics.map((metric, idx) => (
+          <div 
+            key={idx} 
+            className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs flex items-center gap-5 hover:shadow-sm transition duration-200"
+          >
+            <div className={`flex items-center justify-center rounded-full w-12 h-12 shrink-0 ${metric.iconBg}`}>
+              {metric.icon}
+            </div>
+            <div>
+              <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                {metric.title}
+              </span>
+              <span className="block text-2xl font-extrabold text-slate-900 dark:text-white mb-0.5">
+                {metric.value}
+              </span>
+              <span className={`text-xs font-semibold ${metric.subtextColor}`}>
+                {metric.subtext}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Row context menu actions */}
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
+        slotProps={{
+          paper: {
+            className: "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg rounded-xl text-slate-800 dark:text-slate-200"
+          }
+        }}
       >
-        <MenuItem onClick={() => selectedDelivery && handleEditClick(selectedDelivery)}>
-          <Edit fontSize="small" sx={{ mr: 1.5 }} /> Edit Details
+        <MenuItem onClick={() => selectedDelivery && handleEditClick(selectedDelivery)} className="hover:bg-slate-100 dark:hover:bg-slate-800">
+          <Edit fontSize="small" className="mr-3 text-slate-500 dark:text-slate-400" /> Edit Details
         </MenuItem>
         
-        <MenuItem onClick={() => handleQuickStatusChange('Pending')}>
-          <LocalShipping fontSize="small" sx={{ mr: 1.5, color: '#0284c7' }} /> Mark Scheduled
+        <MenuItem onClick={() => handleQuickStatusChange('Pending')} className="hover:bg-slate-100 dark:hover:bg-slate-800">
+          <LocalShipping fontSize="small" className="mr-3 text-sky-600 dark:text-sky-400" /> Mark Scheduled
         </MenuItem>
-        <MenuItem onClick={() => handleQuickStatusChange('Shipped')}>
-          <LocalShipping fontSize="small" sx={{ mr: 1.5, color: '#d97706' }} /> Mark Out for Delivery
+        <MenuItem onClick={() => handleQuickStatusChange('Shipped')} className="hover:bg-slate-100 dark:hover:bg-slate-800">
+          <LocalShipping fontSize="small" className="mr-3 text-amber-600 dark:text-amber-400" /> Mark Out for Delivery
         </MenuItem>
-        <MenuItem onClick={() => handleQuickStatusChange('Delivered')}>
-          <LocalShipping fontSize="small" sx={{ mr: 1.5, color: '#059669' }} /> Mark Delivered
-        </MenuItem>
-        
-        <MenuItem onClick={handleQuickInstallationToggle}>
-          <Build fontSize="small" sx={{ mr: 1.5 }} /> Toggle Installation
+        <MenuItem onClick={() => handleQuickStatusChange('Delivered')} className="hover:bg-slate-100 dark:hover:bg-slate-800">
+          <LocalShipping fontSize="small" className="mr-3 text-emerald-600 dark:text-emerald-400" /> Mark Delivered
         </MenuItem>
         
-        <MenuItem onClick={handleDeleteDelivery} sx={{ color: 'error.main' }}>
+        <MenuItem onClick={handleQuickInstallationToggle} className="hover:bg-slate-100 dark:hover:bg-slate-800">
+          <Build fontSize="small" className="mr-3 text-slate-500 dark:text-slate-400" /> Toggle Installation
+        </MenuItem>
+        
+        <hr className="border-slate-100 dark:border-slate-800 my-1" />
+        
+        <MenuItem onClick={handleDeleteDelivery} className="text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30">
           Delete Record
         </MenuItem>
       </Menu>
 
       {/* Edit Delivery Status Dialog */}
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>Update Delivery Status</DialogTitle>
-        <DialogContent dividers>
-          <Grid container spacing={2.5} sx={{ py: 1 }}>
+      <Dialog 
+        open={open} 
+        onClose={() => setOpen(false)} 
+        maxWidth="xs" 
+        fullWidth
+        slotProps={{
+          paper: {
+            className: "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-2 text-slate-900 dark:text-slate-100"
+          }
+        }}
+      >
+        <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white px-6 py-4">
+          Update Delivery Status
+        </DialogTitle>
+        <DialogContent className="px-6 py-4 border-t border-b border-slate-200 dark:border-slate-800">
+          <div className="flex flex-col gap-5 py-2">
             
-            <Grid item xs={12}>
+            <div className="w-full">
               <TextField
                 fullWidth
                 label="Scheduled Date"
                 type="date"
-                InputLabelProps={{ shrink: true }}
+                slotProps={{
+                  inputLabel: { shrink: true }
+                }}
                 value={deliveryDate}
                 onChange={(e) => setDeliveryDate(e.target.value)}
+                className="bg-white dark:bg-slate-800 rounded-lg"
               />
-            </Grid>
+            </div>
 
-            <Grid item xs={12}>
+            <div className="w-full">
               <TextField
                 fullWidth
                 label="Driver / Delivery Person"
                 value={driverName}
                 onChange={(e) => setDriverName(e.target.value)}
+                className="bg-white dark:bg-slate-800 rounded-lg"
               />
-            </Grid>
+            </div>
 
-            <Grid item xs={12}>
+            <div className="w-full">
               <TextField
                 fullWidth
                 select
                 label="Delivery Status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as any)}
+                className="bg-white dark:bg-slate-800 rounded-lg"
               >
                 <MenuItem value="Pending">Scheduled (Pending)</MenuItem>
                 <MenuItem value="Shipped">Out for Delivery (Shipped)</MenuItem>
                 <MenuItem value="Delivered">Delivered</MenuItem>
               </TextField>
-            </Grid>
+            </div>
 
-            <Grid item xs={12}>
+            <div className="w-full">
               <TextField
                 fullWidth
                 select
                 label="Installation Status"
                 value={installationStatus}
                 onChange={(e) => setInstallationStatus(e.target.value as any)}
+                className="bg-white dark:bg-slate-800 rounded-lg"
               >
                 <MenuItem value="Pending">Requested / Pending</MenuItem>
                 <MenuItem value="Installed">Completed / Installed</MenuItem>
               </TextField>
-            </Grid>
+            </div>
 
-          </Grid>
+          </div>
         </DialogContent>
-        <DialogActions sx={{ p: 2.5 }}>
-          <Button onClick={() => setOpen(false)} sx={{ fontWeight: 700 }}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained" sx={{ fontWeight: 700 }}>Save Changes</Button>
+        <DialogActions className="px-6 py-4 flex justify-end gap-3">
+          <button 
+            onClick={() => setOpen(false)} 
+            className="px-4 py-2 text-sm font-semibold rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition duration-150 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleSave} 
+            className="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white transition duration-150 cursor-pointer"
+          >
+            Save Changes
+          </button>
         </DialogActions>
       </Dialog>
 
       {/* Route Logs Dialog */}
-      <Dialog open={logsOpen} onClose={() => setLogsOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>Route Optimization Logs</DialogTitle>
-        <DialogContent dividers>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, py: 1 }}>
+      <Dialog 
+        open={logsOpen} 
+        onClose={() => setLogsOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        slotProps={{
+          paper: {
+            className: "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-2 text-slate-900 dark:text-slate-100"
+          }
+        }}
+      >
+        <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white px-6 py-4">
+          Route Optimization Logs
+        </DialogTitle>
+        <DialogContent className="px-6 py-4 border-t border-b border-slate-200 dark:border-slate-800">
+          <div className="flex flex-col gap-5 py-2">
             
-            <Paper variant="outlined" sx={{ p: 2, bgcolor: 'action.hover' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: 'block', mb: 1 }}>
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800">
+              <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">
                 TODAY - 08:30 AM (SYSTEM AUTO-RUN)
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.main', mb: 1 }}>
+              </span>
+              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
                 Success: Optimized routes for all active dispatches. Saved 124km fuel (~12.5% decrease).
-              </Typography>
-            </Paper>
+              </p>
+            </div>
 
-            <Box sx={{ pl: 1 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>
+            <div className="pl-1">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-4">
                 Individual Optimization Details
-              </Typography>
+              </h4>
               
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <h5 className="text-sm font-bold text-slate-800 dark:text-slate-200">
                     ORD-8821 (Anita Mishra)
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  </h5>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     Route re-routed via Outer Ring Road due to heavy traffic on Central Ave. Saved 4.2 km.
-                  </Typography>
-                </Box>
+                  </p>
+                </div>
                 
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                <div>
+                  <h5 className="text-sm font-bold text-slate-800 dark:text-slate-200">
                     ORD-8822 (Vikram Khanna)
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  </h5>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     Combined delivery slot with near-site customer. Saved 12.8 km in duplicate route loops.
-                  </Typography>
-                </Box>
+                  </p>
+                </div>
                 
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                <div>
+                  <h5 className="text-sm font-bold text-slate-800 dark:text-slate-200">
                     DC-INV-103 (Vikram Singh)
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  </h5>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     Selected toll highway NH-48 as primary corridor. Saved 3.1 km of suburban intersections.
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
+                  </p>
+                </div>
+              </div>
+            </div>
 
-          </Box>
+          </div>
         </DialogContent>
-        <DialogActions sx={{ p: 2.5 }}>
-          <Button onClick={() => setLogsOpen(false)} variant="contained" sx={{ fontWeight: 700 }}>
+        <DialogActions className="px-6 py-4 flex justify-end">
+          <button 
+            onClick={() => setLogsOpen(false)} 
+            className="px-5 py-2.5 text-sm font-bold rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white transition duration-150 cursor-pointer"
+          >
             Done
-          </Button>
+          </button>
         </DialogActions>
       </Dialog>
 
-    </Box>
+    </div>
   );
 };

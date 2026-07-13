@@ -58,11 +58,33 @@ function App() {
     dbRevision,
     logout, 
     setPage, 
-    toggleTheme 
+    toggleTheme,
+    triggerDbUpdate
   } = useAppStore();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
+  React.useEffect(() => {
+    const root = window.document.documentElement;
+    if (themeMode === 'dark') {
+      root.classList.add('dark');
+      document.body.classList.add('dark-mode');
+    } else {
+      root.classList.remove('dark');
+      document.body.classList.remove('dark-mode');
+    }
+  }, [themeMode]);
+
+  React.useEffect(() => {
+    const initSync = async () => {
+      await db.checkAndSeedSupabase();
+      await db.syncFromSupabase(() => {
+        triggerDbUpdate();
+      });
+    };
+    initSync();
+  }, [triggerDbUpdate]);
 
   const activeTheme = themeMode === 'light' ? themeLight : themeDark;
   const storeSettings = db.getSettings();

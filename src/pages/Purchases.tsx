@@ -15,7 +15,8 @@ import {
   TableRow, 
   IconButton,
   Divider,
-  Autocomplete
+  Autocomplete,
+  InputAdornment
 } from '@mui/material';
 import { Add, Delete, PointOfSale } from '@mui/icons-material';
 import { db, Product, Supplier, Purchase, PurchaseItem } from '../db/db';
@@ -150,10 +151,10 @@ export const Purchases: React.FC = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell>Product</TableCell>
-                    <TableCell align="center" style={{ width: '100px' }}>Quantity</TableCell>
-                    <TableCell align="right" style={{ width: '140px' }}>Purchase Cost (₹)</TableCell>
-                    <TableCell align="right">Total</TableCell>
-                    <TableCell align="center"></TableCell>
+                    <TableCell align="center" style={{ width: '110px' }}>Quantity</TableCell>
+                    <TableCell align="right" style={{ width: '180px', whiteSpace: 'nowrap' }}>Purchase Cost (₹)</TableCell>
+                    <TableCell align="right" style={{ width: '120px' }}>Total</TableCell>
+                    <TableCell align="center" style={{ width: '60px' }}></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -165,8 +166,9 @@ export const Purchases: React.FC = () => {
                           type="number"
                           value={item.quantity}
                           onChange={(e) => handleQtyChange(item.product.id, parseInt(e.target.value))}
-                          inputProps={{ min: 1 }}
+                          inputProps={{ min: 1, style: { textAlign: 'center' } }}
                           size="small"
+                          style={{ width: '80px' }}
                         />
                       </TableCell>
                       <TableCell align="right">
@@ -175,9 +177,15 @@ export const Purchases: React.FC = () => {
                           value={item.costPrice}
                           onChange={(e) => handlePriceChange(item.product.id, Number(e.target.value))}
                           size="small"
+                          style={{ width: '140px' }}
+                          slotProps={{
+                            input: {
+                              startAdornment: <InputAdornment position="start">₹</InputAdornment>,
+                            }
+                          }}
                         />
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="right" style={{ fontWeight: 700 }}>
                         ₹{(item.costPrice * item.quantity).toLocaleString('en-IN')}
                       </TableCell>
                       <TableCell align="center">

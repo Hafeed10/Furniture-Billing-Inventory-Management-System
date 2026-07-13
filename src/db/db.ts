@@ -1,5 +1,12 @@
-// Types for Database Entities
+import { createClient } from '@supabase/supabase-js';
 
+// Initialize Supabase Client
+const supabaseUrl = 'https://cruxppwwdjudpzdsoemd.supabase.co';
+const supabaseAnonKey = 'sb_publishable_ODAUQowKiS36ONqKOXfDtw_p1BanbJ3';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Types for Database Entities
 export interface User {
   id: string;
   username: string;
@@ -516,52 +523,156 @@ const seedPurchases = (): { purchases: Purchase[]; purchaseItems: PurchaseItem[]
   return { purchases, purchaseItems, transactions };
 };
 
-// Database Initialization Helper
+// Database Initialization Helper (local cache setup)
 export const initDb = () => {
+  // We initialize fallback arrays in localStorage so json parsing does not throw exceptions
   if (!localStorage.getItem('dc_settings')) {
     localStorage.setItem('dc_settings', JSON.stringify(INITIAL_SETTINGS));
   }
   if (!localStorage.getItem('dc_categories')) {
-    localStorage.setItem('dc_categories', JSON.stringify(INITIAL_CATEGORIES));
+    localStorage.setItem('dc_categories', JSON.stringify([]));
   }
   if (!localStorage.getItem('dc_products')) {
-    localStorage.setItem('dc_products', JSON.stringify(INITIAL_PRODUCTS));
+    localStorage.setItem('dc_products', JSON.stringify([]));
   }
   if (!localStorage.getItem('dc_customers')) {
-    localStorage.setItem('dc_customers', JSON.stringify(INITIAL_CUSTOMERS));
+    localStorage.setItem('dc_customers', JSON.stringify([]));
   }
   if (!localStorage.getItem('dc_suppliers')) {
-    localStorage.setItem('dc_suppliers', JSON.stringify(INITIAL_SUPPLIERS));
+    localStorage.setItem('dc_suppliers', JSON.stringify([]));
   }
-
-  // Seed transactions
   if (!localStorage.getItem('dc_sales')) {
-    const data = seedSales();
-    localStorage.setItem('dc_sales', JSON.stringify(data.sales));
-    localStorage.setItem('dc_sale_items', JSON.stringify(data.saleItems));
-    localStorage.setItem('dc_deliveries', JSON.stringify(data.deliveries));
-    localStorage.setItem('dc_stock_transactions', JSON.stringify(data.transactions));
+    localStorage.setItem('dc_sales', JSON.stringify([]));
   }
-
+  if (!localStorage.getItem('dc_sale_items')) {
+    localStorage.setItem('dc_sale_items', JSON.stringify([]));
+  }
+  if (!localStorage.getItem('dc_deliveries')) {
+    localStorage.setItem('dc_deliveries', JSON.stringify([]));
+  }
+  if (!localStorage.getItem('dc_stock_transactions')) {
+    localStorage.setItem('dc_stock_transactions', JSON.stringify([]));
+  }
   if (!localStorage.getItem('dc_purchases')) {
-    const data = seedPurchases();
-    localStorage.setItem('dc_purchases', JSON.stringify(data.purchases));
-    localStorage.setItem('dc_purchase_items', JSON.stringify(data.purchaseItems));
-
-    // Append to existing stock transactions
-    const existingTx = JSON.parse(localStorage.getItem('dc_stock_transactions') || '[]');
-    localStorage.setItem('dc_stock_transactions', JSON.stringify([...existingTx, ...data.transactions]));
+    localStorage.setItem('dc_purchases', JSON.stringify([]));
+  }
+  if (!localStorage.getItem('dc_purchase_items')) {
+    localStorage.setItem('dc_purchase_items', JSON.stringify([]));
   }
 };
 
-// Database Access Functions
+// Database Access Layer with background Supabase sync
 export const db = {
+  // Supabase Seed Function: seeds the database if it is empty
+  checkAndSeedSupabase: async () => {
+    try {
+      const { data, error } = await supabase.from('settings').select('id');
+      if (error) {
+        console.warn('Supabase settings table check failed, it might not exist yet:', error);
+        return;
+      }
+      if (!data || data.length === 0) {
+        console.log('Supabase tables are empty, seeding database...');
+        
+        // Seed settings
+        await supabase.from('settings').insert({ id: 'default', ...INITIAL_SETTINGS });
+        // Seed categories
+        await supabase.from('categories').insert(INITIAL_CATEGORIES);
+        // Seed products
+        await supabase.from('products').insert(INITIAL_PRODUCTS);
+        // Seed customers
+        await supabase.from('customers').insert(INITIAL_CUSTOMERS);
+        // Seed suppliers
+        await supabase.from('suppliers').insert(INITIAL_SUPPLIERS);
+
+        // Seed historical sales & purchases
+        const salesData = seedSales();
+        const purchasesData = seedPurchases();
+
+        if (salesData.sales.length > 0) await supabase.from('sales').insert(salesData.sales);
+        if (salesData.saleItems.length > 0) await supabase.from('sale_items').insert(salesData.saleItems);
+        if (salesData.deliveries.length > 0) await supabase.from('deliveries').insert(salesData.deliveries);
+        
+        const combinedTx = [...salesData.transactions, ...purchasesData.transactions];
+        if (combinedTx.length > 0) await supabase.from('stock_transactions').insert(combinedTx);
+
+        if (purchasesData.purchases.length > 0) await supabase.from('purchases').insert(purchasesData.purchases);
+        if (purchasesData.purchaseItems.length > 0) await supabase.from('purchase_items').insert(purchasesData.purchaseItems);
+
+        console.log('Seeded Supabase database successfully!');
+      }
+    } catch (err) {
+      console.warn('Error during Supabase seeding (check database connection and tables):', err);
+    }
+  },
+
+  // Supabase Fetch/Sync Function: retrieves everything from Supabase and fills localStorage
+  syncFromSupabase: async (triggerUpdate?: () => void) => {
+    try {
+      const fetchTable = async (tableName: string) => {
+        const { data, error } = await supabase.from(tableName).select('*');
+        if (error) throw error;
+        return data;
+      };
+
+      const [
+        settings,
+        categories,
+        products,
+        customers,
+        suppliers,
+        sales,
+        saleItems,
+        purchases,
+        purchaseItems,
+        deliveries,
+        stockTransactions
+      ] = await Promise.all([
+        fetchTable('settings'),
+        fetchTable('categories'),
+        fetchTable('products'),
+        fetchTable('customers'),
+        fetchTable('suppliers'),
+        fetchTable('sales'),
+        fetchTable('sale_items'),
+        fetchTable('purchases'),
+        fetchTable('purchase_items'),
+        fetchTable('deliveries'),
+        fetchTable('stock_transactions')
+      ]);
+
+      if (settings && settings.length > 0) {
+        localStorage.setItem('dc_settings', JSON.stringify(settings[0]));
+      }
+      if (categories) localStorage.setItem('dc_categories', JSON.stringify(categories));
+      if (products) localStorage.setItem('dc_products', JSON.stringify(products));
+      if (customers) localStorage.setItem('dc_customers', JSON.stringify(customers));
+      if (suppliers) localStorage.setItem('dc_suppliers', JSON.stringify(suppliers));
+      if (sales) localStorage.setItem('dc_sales', JSON.stringify(sales));
+      if (saleItems) localStorage.setItem('dc_sale_items', JSON.stringify(saleItems));
+      if (purchases) localStorage.setItem('dc_purchases', JSON.stringify(purchases));
+      if (purchaseItems) localStorage.setItem('dc_purchase_items', JSON.stringify(purchaseItems));
+      if (deliveries) localStorage.setItem('dc_deliveries', JSON.stringify(deliveries));
+      if (stockTransactions) localStorage.setItem('dc_stock_transactions', JSON.stringify(stockTransactions));
+
+      if (triggerUpdate) {
+        triggerUpdate();
+      }
+      console.log('Successfully synced all tables from Supabase!');
+    } catch (err) {
+      console.warn('Could not sync from Supabase (tables may not exist or are empty):', err);
+    }
+  },
+
   getSettings: (): StoreSettings => {
     initDb();
     return JSON.parse(localStorage.getItem('dc_settings')!);
   },
   saveSettings: (settings: StoreSettings) => {
     localStorage.setItem('dc_settings', JSON.stringify(settings));
+    supabase.from('settings').upsert({ id: 'default', ...settings }).then(({ error }) => {
+      if (error) console.error('Failed to sync settings to Supabase:', error);
+    });
   },
   getCategories: (): Category[] => {
     initDb();
@@ -573,6 +684,9 @@ export const db = {
     if (idx >= 0) list[idx] = category;
     else list.push(category);
     localStorage.setItem('dc_categories', JSON.stringify(list));
+    supabase.from('categories').upsert(category).then(({ error }) => {
+      if (error) console.error('Failed to sync category to Supabase:', error);
+    });
   },
   getProducts: (): Product[] => {
     initDb();
@@ -584,11 +698,17 @@ export const db = {
     if (idx >= 0) list[idx] = product;
     else list.push(product);
     localStorage.setItem('dc_products', JSON.stringify(list));
+    supabase.from('products').upsert(product).then(({ error }) => {
+      if (error) console.error('Failed to sync product to Supabase:', error);
+    });
   },
   deleteProduct: (id: string) => {
     const list = db.getProducts();
     const filtered = list.filter(p => p.id !== id);
     localStorage.setItem('dc_products', JSON.stringify(filtered));
+    supabase.from('products').delete().eq('id', id).then(({ error }) => {
+      if (error) console.error('Failed to delete product from Supabase:', error);
+    });
   },
   getCustomers: (): Customer[] => {
     initDb();
@@ -600,6 +720,9 @@ export const db = {
     if (idx >= 0) list[idx] = customer;
     else list.push(customer);
     localStorage.setItem('dc_customers', JSON.stringify(list));
+    supabase.from('customers').upsert(customer).then(({ error }) => {
+      if (error) console.error('Failed to sync customer to Supabase:', error);
+    });
   },
   getSuppliers: (): Supplier[] => {
     initDb();
@@ -611,6 +734,9 @@ export const db = {
     if (idx >= 0) list[idx] = supplier;
     else list.push(supplier);
     localStorage.setItem('dc_suppliers', JSON.stringify(list));
+    supabase.from('suppliers').upsert(supplier).then(({ error }) => {
+      if (error) console.error('Failed to sync supplier to Supabase:', error);
+    });
   },
   getSales: (): Sale[] => {
     initDb();
@@ -638,6 +764,9 @@ export const db = {
     if (idx >= 0) list[idx] = delivery;
     else list.push(delivery);
     localStorage.setItem('dc_deliveries', JSON.stringify(list));
+    supabase.from('deliveries').upsert(delivery).then(({ error }) => {
+      if (error) console.error('Failed to sync delivery to Supabase:', error);
+    });
   },
   getStockTransactions: (): StockTransaction[] => {
     initDb();
@@ -661,15 +790,18 @@ export const db = {
       saleDate
     };
 
-    // Save sale
+    // Save sale locally
     const salesList = db.getSales();
     salesList.push(newSale);
     localStorage.setItem('dc_sales', JSON.stringify(salesList));
 
-    // Save sale items & Stock Transactions & update stock quantities
+    // Save sale items & Stock Transactions & update stock quantities locally
     const saleItemsList = db.getSaleItems();
     const productsList = db.getProducts();
     const txList = db.getStockTransactions();
+
+    const dbSaleItems: SaleItem[] = [];
+    const dbTxList: StockTransaction[] = [];
 
     items.forEach((item, index) => {
       const sItem: SaleItem = {
@@ -678,6 +810,7 @@ export const db = {
         saleId
       };
       saleItemsList.push(sItem);
+      dbSaleItems.push(sItem);
 
       // Decrement product stock
       const pIdx = productsList.findIndex(p => p.id === item.productId);
@@ -686,7 +819,7 @@ export const db = {
       }
 
       // Add Stock transaction
-      txList.push({
+      const stx: StockTransaction = {
         id: `tx-${Date.now()}-${index}`,
         productId: item.productId,
         type: 'out',
@@ -694,14 +827,16 @@ export const db = {
         date: saleDate,
         referenceId: saleId,
         notes: `Sale ${invoiceNumber}`
-      });
+      };
+      txList.push(stx);
+      dbTxList.push(stx);
     });
 
     localStorage.setItem('dc_sale_items', JSON.stringify(saleItemsList));
     localStorage.setItem('dc_products', JSON.stringify(productsList));
     localStorage.setItem('dc_stock_transactions', JSON.stringify(txList));
 
-    // Update Customer Outstanding balance
+    // Update Customer Outstanding balance locally
     if (newSale.balanceDue > 0) {
       const customerList = db.getCustomers();
       const cIdx = customerList.findIndex(c => c.id === newSale.customerId);
@@ -711,22 +846,49 @@ export const db = {
       }
     }
 
-    // Create a Delivery entry if there is a shipping/delivery address
+    // Create a Delivery entry locally
     const cust = db.getCustomers().find(c => c.id === newSale.customerId);
     const deliveriesList = db.getDeliveries();
-    deliveriesList.push({
+    const newDelivery: Delivery = {
       id: `del-${Date.now()}`,
       saleId,
       deliveryDate: new Date(Date.now() + 86400000 * 2).toISOString(), // Estimated 2 days from now
       deliveryAddress: cust ? cust.address : 'Store Pickup',
       status: 'Pending',
       installationStatus: 'Pending'
-    });
+    };
+    deliveriesList.push(newDelivery);
     localStorage.setItem('dc_deliveries', JSON.stringify(deliveriesList));
 
-    // Update Invoice counter
+    // Update Invoice counter locally
     settings.nextInvoiceNumber += 1;
-    db.saveSettings(settings);
+    localStorage.setItem('dc_settings', JSON.stringify(settings));
+
+    // Sync all writes to Supabase in background
+    (async () => {
+      try {
+        await supabase.from('sales').insert(newSale);
+        await supabase.from('sale_items').insert(dbSaleItems);
+        
+        // Update product stocks
+        for (const item of items) {
+          const p = productsList.find(x => x.id === item.productId);
+          if (p) await supabase.from('products').upsert(p);
+        }
+        
+        await supabase.from('stock_transactions').insert(dbTxList);
+        
+        if (newSale.balanceDue > 0) {
+          const c = db.getCustomers().find(x => x.id === newSale.customerId);
+          if (c) await supabase.from('customers').upsert(c);
+        }
+        
+        await supabase.from('deliveries').insert(newDelivery);
+        await supabase.from('settings').upsert({ id: 'default', ...settings });
+      } catch (err) {
+        console.error('Error syncing recorded sale to Supabase:', err);
+      }
+    })();
 
     return newSale;
   },
@@ -748,15 +910,18 @@ export const db = {
       purchaseDate
     };
 
-    // Save purchase
+    // Save purchase locally
     const purchasesList = db.getPurchases();
     purchasesList.push(newPurchase);
     localStorage.setItem('dc_purchases', JSON.stringify(purchasesList));
 
-    // Save items & stock
+    // Save items & stock locally
     const purchaseItemsList = db.getPurchaseItems();
     const productsList = db.getProducts();
     const txList = db.getStockTransactions();
+
+    const dbPurchaseItems: PurchaseItem[] = [];
+    const dbTxList: StockTransaction[] = [];
 
     items.forEach((item, index) => {
       const pItem: PurchaseItem = {
@@ -765,6 +930,7 @@ export const db = {
         purchaseId
       };
       purchaseItemsList.push(pItem);
+      dbPurchaseItems.push(pItem);
 
       // Increment product stock
       const pIdx = productsList.findIndex(p => p.id === item.productId);
@@ -773,7 +939,7 @@ export const db = {
       }
 
       // Add stock transaction
-      txList.push({
+      const stx: StockTransaction = {
         id: `tx-${Date.now()}-${index}`,
         productId: item.productId,
         type: 'in',
@@ -781,16 +947,37 @@ export const db = {
         date: purchaseDate,
         referenceId: purchaseId,
         notes: `Purchase ${purchaseNumber}`
-      });
+      };
+      txList.push(stx);
+      dbTxList.push(stx);
     });
 
     localStorage.setItem('dc_purchase_items', JSON.stringify(purchaseItemsList));
     localStorage.setItem('dc_products', JSON.stringify(productsList));
     localStorage.setItem('dc_stock_transactions', JSON.stringify(txList));
 
-    // Update settings
+    // Update settings counter locally
     settings.nextPurchaseNumber += 1;
-    db.saveSettings(settings);
+    localStorage.setItem('dc_settings', JSON.stringify(settings));
+
+    // Sync all writes to Supabase in background
+    (async () => {
+      try {
+        await supabase.from('purchases').insert(newPurchase);
+        await supabase.from('purchase_items').insert(dbPurchaseItems);
+        
+        // Update product stocks
+        for (const item of items) {
+          const p = productsList.find(x => x.id === item.productId);
+          if (p) await supabase.from('products').upsert(p);
+        }
+
+        await supabase.from('stock_transactions').insert(dbTxList);
+        await supabase.from('settings').upsert({ id: 'default', ...settings });
+      } catch (err) {
+        console.error('Error syncing recorded purchase to Supabase:', err);
+      }
+    })();
 
     return newPurchase;
   },
@@ -812,7 +999,7 @@ export const db = {
 
       // Record transaction
       const txList = db.getStockTransactions();
-      txList.push({
+      const newTx: StockTransaction = {
         id: `tx-${Date.now()}`,
         productId,
         type,
@@ -820,8 +1007,17 @@ export const db = {
         date: new Date().toISOString(),
         referenceId: 'audit',
         notes
-      });
+      };
+      txList.push(newTx);
       localStorage.setItem('dc_stock_transactions', JSON.stringify(txList));
+
+      // Write updates to Supabase
+      supabase.from('products').upsert(product).then(({ error }) => {
+        if (error) console.error('Failed to sync stock qty adjustment to Supabase:', error);
+      });
+      supabase.from('stock_transactions').insert(newTx).then(({ error }) => {
+        if (error) console.error('Failed to sync stock adjustment transaction to Supabase:', error);
+      });
     }
   },
 
@@ -832,6 +1028,11 @@ export const db = {
     if (cIdx >= 0) {
       customerList[cIdx].outstandingBalance = Math.max(0, customerList[cIdx].outstandingBalance - amountPaid);
       localStorage.setItem('dc_customers', JSON.stringify(customerList));
+      
+      // Write updates to Supabase
+      supabase.from('customers').upsert(customerList[cIdx]).then(({ error }) => {
+        if (error) console.error('Failed to sync customer payment to Supabase:', error);
+      });
     }
   },
 
@@ -877,6 +1078,26 @@ export const db = {
         localStorage.setItem('dc_purchase_items', JSON.stringify(data.purchase_items || []));
         localStorage.setItem('dc_deliveries', JSON.stringify(data.deliveries || []));
         localStorage.setItem('dc_stock_transactions', JSON.stringify(data.stock_transactions || []));
+
+        // Sync full backup import to Supabase
+        (async () => {
+          try {
+            await supabase.from('settings').upsert({ id: 'default', ...data.settings });
+            await supabase.from('categories').upsert(data.categories);
+            await supabase.from('products').upsert(data.products);
+            await supabase.from('customers').upsert(data.customers);
+            await supabase.from('suppliers').upsert(data.suppliers);
+            await supabase.from('sales').upsert(data.sales);
+            if (data.sale_items && data.sale_items.length > 0) await supabase.from('sale_items').upsert(data.sale_items);
+            if (data.purchases && data.purchases.length > 0) await supabase.from('purchases').upsert(data.purchases);
+            if (data.purchase_items && data.purchase_items.length > 0) await supabase.from('purchase_items').upsert(data.purchase_items);
+            if (data.deliveries && data.deliveries.length > 0) await supabase.from('deliveries').upsert(data.deliveries);
+            if (data.stock_transactions && data.stock_transactions.length > 0) await supabase.from('stock_transactions').upsert(data.stock_transactions);
+          } catch (err) {
+            console.error('Failed to sync full database backup to Supabase:', err);
+          }
+        })();
+
         return true;
       }
       return false;
