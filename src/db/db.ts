@@ -148,6 +148,9 @@ export interface StoreSettings {
   invoicePrefix: string;
   nextInvoiceNumber: number;
   nextPurchaseNumber: number;
+  winInstallerUrl: string;
+  macInstallerUrl: string;
+  desktopVersion: string;
 }
 
 // Initial Seed Data
@@ -322,7 +325,10 @@ const INITIAL_SETTINGS: StoreSettings = {
   defaultGstRate: 18,
   invoicePrefix: 'DC-INV-',
   nextInvoiceNumber: 104,
-  nextPurchaseNumber: 102
+  nextPurchaseNumber: 102,
+  winInstallerUrl: 'https://example.com/downloads/decocraft_setup.exe',
+  macInstallerUrl: 'https://example.com/downloads/decocraft_setup.dmg',
+  desktopVersion: '1.0.0'
 };
 
 // Seed historical sales & purchases over the past 3 months

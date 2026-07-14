@@ -57,6 +57,9 @@ export const Settings: React.FC = () => {
   const [email, setEmail] = useState(settings.email);
   const [gstNumber, setGstNumber] = useState(settings.gstNumber);
   const [invoicePrefix, setInvoicePrefix] = useState(settings.invoicePrefix);
+  const [winInstallerUrl, setWinInstallerUrl] = useState(settings.winInstallerUrl || '');
+  const [macInstallerUrl, setMacInstallerUrl] = useState(settings.macInstallerUrl || '');
+  const [desktopVersion, setDesktopVersion] = useState(settings.desktopVersion || '1.0.0');
 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -79,7 +82,10 @@ export const Settings: React.FC = () => {
       phone,
       email,
       gstNumber,
-      invoicePrefix
+      invoicePrefix,
+      winInstallerUrl,
+      macInstallerUrl,
+      desktopVersion
     });
 
     triggerDbUpdate();
@@ -240,6 +246,36 @@ export const Settings: React.FC = () => {
                 />
               </Grid>
               
+              <Grid item xs={12}>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="h6" gutterBottom>Desktop App Release Links</Typography>
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Windows Setup Link (.exe URL)"
+                  value={winInstallerUrl}
+                  onChange={(e) => setWinInstallerUrl(e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="macOS Setup Link (.dmg URL)"
+                  value={macInstallerUrl}
+                  onChange={(e) => setMacInstallerUrl(e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Desktop Release Version"
+                  value={desktopVersion}
+                  onChange={(e) => setDesktopVersion(e.target.value)}
+                />
+              </Grid>
+              
               <Grid item xs={12} sx={{ textAlign: 'right', mt: 2 }}>
                 <Button
                   variant="contained"
@@ -365,7 +401,7 @@ export const Settings: React.FC = () => {
               <Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="body2" color="text.secondary">Current Client Version:</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>v1.0.4</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>v{desktopVersion || '1.0.0'}</Typography>
                 </Box>
 
                 {isUpdateAvailable ? (
@@ -404,6 +440,60 @@ export const Settings: React.FC = () => {
                     {checkingUpdates ? "Checking updates..." : "Check for Updates"}
                   </Button>
                 )}
+              </Box>
+
+              <Divider sx={{ my: 2.5 }} />
+
+              {/* Standalone Installers Section */}
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5, display: 'block' }}>
+                  Download Desktop Installers
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block', lineHeight: 1.3 }}>
+                  Traditional package installation (Version: v{desktopVersion || '1.0.0'}). Run the installer locally on your device.
+                </Typography>
+
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="large"
+                    component="a"
+                    href={winInstallerUrl || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    disabled={!winInstallerUrl}
+                    startIcon={<GetApp />}
+                    fullWidth
+                    sx={{ 
+                      height: 48, 
+                      fontWeight: 700, 
+                      bgcolor: '#0f172a',
+                      color: '#ffffff',
+                      '&:hover': {
+                        bgcolor: '#1e293b'
+                      }
+                    }}
+                  >
+                    Download for Windows (.exe)
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    size="large"
+                    component="a"
+                    href={macInstallerUrl || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    disabled={!macInstallerUrl}
+                    startIcon={<GetApp />}
+                    fullWidth
+                    sx={{ height: 48, fontWeight: 700 }}
+                  >
+                    Download for macOS (.dmg)
+                  </Button>
+                </Box>
               </Box>
             </Paper>
           </Box>
