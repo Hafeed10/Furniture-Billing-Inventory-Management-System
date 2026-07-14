@@ -11,6 +11,12 @@ interface AppState {
   setPage: (page: string) => void;
   toggleTheme: () => void;
   triggerDbUpdate: () => void;
+  installPrompt: any;
+  setInstallPrompt: (prompt: any) => void;
+  isUpdateAvailable: boolean;
+  setIsUpdateAvailable: (available: boolean) => void;
+  swRegistration: ServiceWorkerRegistration | null;
+  setSwRegistration: (reg: ServiceWorkerRegistration | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -21,6 +27,12 @@ export const useAppStore = create<AppState>((set) => ({
   currentPage: 'dashboard',
   themeMode: (localStorage.getItem('dc_theme_mode') as 'light' | 'dark') || 'dark',
   dbRevision: 0,
+  installPrompt: null,
+  setInstallPrompt: (prompt) => set({ installPrompt: prompt }),
+  isUpdateAvailable: false,
+  setIsUpdateAvailable: (available) => set({ isUpdateAvailable: available }),
+  swRegistration: null,
+  setSwRegistration: (reg) => set({ swRegistration: reg }),
 
   login: (username: string, role: 'admin' | 'manager' | 'sales' | 'accountant') => {
     const user: User = {

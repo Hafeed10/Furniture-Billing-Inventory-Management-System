@@ -17,14 +17,15 @@ app.post('/api/optimize-deliveries', (req, res) => {
 
   // 1. Calculate coordinates
   const getCoords = (id, name) => {
-    if (id === 'del-3' || id.includes('demo-driver-1')) {
+    const safeId = typeof id === 'string' ? id : String(id || '');
+    if (safeId === 'del-3' || safeId.includes('demo-driver-1')) {
       return { x: 380, y: 180 }; 
     }
-    if (id.includes('demo-driver-2')) {
+    if (safeId.includes('demo-driver-2')) {
       return { x: 620, y: 240 };
     }
     let hash = 0;
-    const str = id + name;
+    const str = safeId + name;
     for (let i = 0; i < str.length; i++) {
       hash = str.charCodeAt(i) + ((hash << 5) - hash);
     }

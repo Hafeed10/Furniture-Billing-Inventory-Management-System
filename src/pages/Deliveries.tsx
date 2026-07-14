@@ -33,15 +33,16 @@ import { db, Delivery } from '../db/db';
 import { useAppStore } from '../store/store';
 
 // Helper to generate stable coordinates within SVG dimensions (800x400)
-const getCoordinates = (id: string, name: string) => {
-  if (id === 'del-3' || id.includes('demo-driver-1')) {
+const getCoordinates = (id: any, name: string) => {
+  const safeId = typeof id === 'string' ? id : String(id || '');
+  if (safeId === 'del-3' || safeId.includes('demo-driver-1')) {
     return { x: 380, y: 180 }; 
   }
-  if (id.includes('demo-driver-2')) {
+  if (safeId.includes('demo-driver-2')) {
     return { x: 620, y: 240 };
   }
   let hash = 0;
-  const str = id + name;
+  const str = safeId + name;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
@@ -55,10 +56,10 @@ export const Deliveries: React.FC = () => {
   const triggerDbUpdate = useAppStore(state => state.triggerDbUpdate);
   const themeMode = useAppStore(state => state.themeMode);
 
-  const deliveries = useMemo(() => db.getDeliveries(), [dbRevision]);
-  const sales = useMemo(() => db.getSales(), [dbRevision]);
-  const customers = useMemo(() => db.getCustomers(), [dbRevision]);
-  const saleItems = useMemo(() => db.getSaleItems(), [dbRevision]);
+  const deliveries = useMemo(() => db.getDeliveries() || [], [dbRevision]);
+  const sales = useMemo(() => db.getSales() || [], [dbRevision]);
+  const customers = useMemo(() => db.getCustomers() || [], [dbRevision]);
+  const saleItems = useMemo(() => db.getSaleItems() || [], [dbRevision]);
 
   // Optimization state and handlers
   const [optimizationData, setOptimizationData] = useState<{
@@ -256,7 +257,7 @@ export const Deliveries: React.FC = () => {
 
   // Filter Deliveries
   const filteredDeliveries = useMemo(() => {
-    const listSrc = optimizationData ? optimizationData.deliveries : deliveries;
+    const listSrc = (optimizationData && Array.isArray(optimizationData.deliveries)) ? optimizationData.deliveries : deliveries;
     return listSrc.filter(del => {
       const sale = sales.find(s => s.id === del.saleId);
       const customer = sale ? customers.find(c => c.id === sale.customerId) : null;
@@ -283,17 +284,17 @@ export const Deliveries: React.FC = () => {
       // Date filter
       let matchDate = true;
       if (dateFilter) {
-        const delDateStr = del.deliveryDate ? del.deliveryDate.split('T')[0] : '';
+        const delDateStr = typeof del.deliveryDate === 'string' ? del.deliveryDate.split('T')[0] : '';
         matchDate = delDateStr === dateFilter;
       }
       
       return matchSearch && matchStatus && matchDate;
     });
-  }, [deliveries, sales, customers, searchQuery, statusFilter, dateFilter]);
+  }, [deliveries, sales, customers, searchQuery, statusFilter, dateFilter, optimizationData]);
 
   // Active Drivers list mapping for map mockup
   const mapDrivers = useMemo(() => {
-    const listSrc = optimizationData ? optimizationData.deliveries : deliveries;
+    const listSrc = (optimizationData && Array.isArray(optimizationData.deliveries)) ? optimizationData.deliveries : deliveries;
     // Unique list of active drivers in system
     const activeFromDb = listSrc
       .filter(d => d.status === 'Pending' || d.status === 'Shipped')
@@ -457,6 +458,9 @@ export const Deliveries: React.FC = () => {
 
             {/* Driver Pulse Pins */}
             {mapDrivers.map((driver) => {
+              if (typeof driver.x !== 'number' || typeof driver.y !== 'number' || isNaN(driver.x) || isNaN(driver.y)) {
+                return null;
+              }
               const zoomFactor = mapZoom === 1 ? 0.75 : mapZoom === 2 ? 1 : 1.35;
               const scaledX = (driver.x - 400) * zoomFactor + 400;
               const scaledY = (driver.y - 200) * zoomFactor + 200;
@@ -536,17 +540,17 @@ export const Deliveries: React.FC = () => {
             
             <div className="flex items-baseline gap-1 mb-4">
               <span className="text-5xl font-extrabold tracking-tight">
-                {optimizationData ? optimizationData.metrics.fuelSaved.replace('↓', '').replace('v. last week', '').trim() : '12.5%'}
+                {optimizationData?.metrics?.fuelSaved ? optimizationData.metrics.fuelSaved.replace('↓', '').replace('v. last week', '').trim() : '12.5%'}
               </span>
             </div>
 
             {/* Progress bar styled in Tailwind */}
             <div className="h-2 w-full bg-white/20 rounded-full overflow-hidden mb-5">
-              <div className="h-full bg-white rounded-full transition-all duration-500" style={{ width: optimizationData ? `${parseFloat(optimizationData.metrics.fuelSaved.replace(/[^0-9.]/g, '')) * 5}%` : '60%' }}></div>
+              <div className="h-full bg-white rounded-full transition-all duration-500" style={{ width: optimizationData?.metrics?.fuelSaved ? `${parseFloat(optimizationData.metrics.fuelSaved.replace(/[^0-9.]/g, '')) * 5}%` : '60%' }}></div>
             </div>
 
             <p className="text-sm opacity-90 leading-relaxed font-medium">
-              Optimized routes saved {optimizationData ? optimizationData.metrics.distanceSaved : '12.4 km'} of fuel today.
+              Optimized routes saved {optimizationData?.metrics?.distanceSaved || '12.4 km'} of fuel today.
             </p>
           </div>
 
@@ -974,7 +978,7 @@ export const Deliveries: React.FC = () => {
                 TODAY - {new Date().toLocaleDateString('en-IN')} (EXPRESS BACKEND AUTO-RUN)
               </span>
               <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                Success: Optimized routes for all active dispatches. Saved {optimizationData?.metrics.distanceSaved || '12.4 km'} fuel ({optimizationData?.metrics.fuelSaved || '↓ 12.5%'}).
+                Success: Optimized routes for all active dispatches. Saved {optimizationData?.metrics?.distanceSaved || '12.4 km'} fuel ({optimizationData?.metrics?.fuelSaved || '↓ 12.5%'}).
               </p>
             </div>
 
@@ -984,7 +988,7 @@ export const Deliveries: React.FC = () => {
               </h4>
               
               <div className="flex flex-col gap-4">
-                {optimizationData?.metrics.logs.map((log, idx) => (
+                {(optimizationData?.metrics?.logs || []).map((log, idx) => (
                   <div key={idx}>
                     <h5 className="text-sm font-bold text-slate-800 dark:text-slate-200">
                       {log.invoiceNumber} - {log.customerName}
@@ -994,7 +998,7 @@ export const Deliveries: React.FC = () => {
                     </p>
                   </div>
                 ))}
-                {(!optimizationData || optimizationData.metrics.logs.length === 0) && (
+                {(!optimizationData?.metrics?.logs || optimizationData.metrics.logs.length === 0) && (
                   <p className="text-xs text-slate-500 dark:text-slate-400">No active optimized routes currently loaded.</p>
                 )}
               </div>

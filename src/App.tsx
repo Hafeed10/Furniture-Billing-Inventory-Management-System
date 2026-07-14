@@ -22,7 +22,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  CircularProgress
+  CircularProgress,
+  Badge
 } from '@mui/material';
 import { 
   Menu as MenuIcon, 
@@ -67,7 +68,11 @@ function App() {
     logout, 
     setPage, 
     toggleTheme,
-    triggerDbUpdate
+    triggerDbUpdate,
+    setInstallPrompt,
+    setIsUpdateAvailable,
+    setSwRegistration,
+    isUpdateAvailable
   } = useAppStore();
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -105,6 +110,64 @@ function App() {
     };
     initSync();
   }, [triggerDbUpdate]);
+
+  // PWA Install Prompt Listener
+  React.useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, [setInstallPrompt]);
+
+  // Service Worker Update Check
+  React.useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      // Get the existing registration
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (reg) {
+          setSwRegistration(reg);
+
+          // If there is already a waiting worker, update is available
+          if (reg.waiting) {
+            setIsUpdateAvailable(true);
+          }
+
+          // Listen for new service worker installation
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  setIsUpdateAvailable(true);
+                }
+              });
+            }
+          });
+        }
+      });
+
+      // Listen for controllerchange to reload and take control
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+    }
+  }, [setIsUpdateAvailable, setSwRegistration]);
 
   const activeTheme = themeMode === 'light' ? themeLight : themeDark;
   const storeSettings = db.getSettings();
@@ -172,7 +235,16 @@ function App() {
     { text: 'Suppliers', icon: <SuppIcon />, page: 'suppliers', roles: ['admin', 'manager', 'accountant'] },
     { text: 'Purchases', icon: <PurchaseIcon />, page: 'purchases', roles: ['admin', 'manager'] },
     { text: 'Reports & Profits', icon: <ReportIcon />, page: 'reports', roles: ['admin', 'manager', 'accountant'] },
-    { text: 'Settings', icon: <SettingIcon />, page: 'settings', roles: ['admin'] },
+    { 
+      text: 'Settings', 
+      icon: (
+        <Badge color="error" variant="dot" invisible={!isUpdateAvailable}>
+          <SettingIcon />
+        </Badge>
+      ), 
+      page: 'settings', 
+      roles: ['admin'] 
+    },
   ];
 
   const visibleMenuItems = menuItems.filter(item => item.roles.includes(currentUser.role));

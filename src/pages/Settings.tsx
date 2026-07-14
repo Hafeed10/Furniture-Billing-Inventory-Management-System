@@ -7,9 +7,21 @@ import {
   TextField, 
   Button, 
   Divider,
-  Alert
+  Alert,
+  Chip,
+  CircularProgress
 } from '@mui/material';
-import { Save, CloudDownload, CloudUpload } from '@mui/icons-material';
+import { 
+  Save, 
+  CloudDownload, 
+  CloudUpload,
+  LaptopMac,
+  CheckCircle,
+  Refresh,
+  ArrowCircleUp,
+  Info,
+  GetApp
+} from '@mui/icons-material';
 import { db, StoreSettings } from '../db/db';
 import { useAppStore } from '../store/store';
 
@@ -17,6 +29,21 @@ export const Settings: React.FC = () => {
   const dbRevision = useAppStore(state => state.dbRevision);
   const triggerDbUpdate = useAppStore(state => state.triggerDbUpdate);
   const currentUser = useAppStore(state => state.currentUser);
+  
+  // Desktop App / Update States
+  const installPrompt = useAppStore(state => state.installPrompt);
+  const isUpdateAvailable = useAppStore(state => state.isUpdateAvailable);
+  const swRegistration = useAppStore(state => state.swRegistration);
+  const setInstallPrompt = useAppStore(state => state.setInstallPrompt);
+
+  const isStandalone = useMemo(() => {
+    return window.matchMedia('(display-mode: standalone)').matches || 
+           (window.navigator as any).standalone || 
+           document.referrer.includes('android-app://');
+  }, []);
+
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<'idle' | 'checking' | 'updated' | 'no-update' | 'error'>('idle');
 
   // Guard access
   const isAllowed = currentUser?.role === 'admin';
@@ -88,6 +115,54 @@ export const Settings: React.FC = () => {
         setTimeout(() => setMessage(null), 3000);
       };
       reader.readAsText(file);
+    }
+  };
+
+  const handleCheckUpdates = async () => {
+    setCheckingUpdates(true);
+    setUpdateCheckStatus('checking');
+    
+    if (swRegistration) {
+      try {
+        await swRegistration.update();
+      } catch (err) {
+        console.error('Service worker update check failed', err);
+      }
+    }
+
+    setTimeout(() => {
+      setCheckingUpdates(false);
+      if (isUpdateAvailable || (swRegistration && swRegistration.waiting)) {
+        setUpdateCheckStatus('updated');
+        setMessage({ type: 'success', text: 'A new version of DecoCraft is available! Select Reload to update.' });
+      } else {
+        setUpdateCheckStatus('no-update');
+        setMessage({ type: 'success', text: 'You are running the latest version of DecoCraft Furnishers.' });
+      }
+      setTimeout(() => {
+        setMessage(null);
+        setUpdateCheckStatus('idle');
+      }, 5000);
+    }, 1500);
+  };
+
+  const handleInstallClick = () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      installPrompt.userChoice.then((choiceResult: any) => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('User accepted the install prompt');
+          setInstallPrompt(null);
+        }
+      });
+    }
+  };
+
+  const handleApplyUpdate = () => {
+    if (swRegistration && swRegistration.waiting) {
+      swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    } else {
+      window.location.reload();
     }
   };
 
@@ -181,48 +256,157 @@ export const Settings: React.FC = () => {
           </Paper>
         </Grid>
 
-        {/* Right Side: Backups & Restores */}
+        {/* Right Side: Backups & Desktop Tools */}
         <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 4, height: '100%', boxSizing: 'border-box' }}>
-            <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
-              Backup & Database Tools
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Export your current showroom database containing products, customers, suppliers, purchases, deliveries, invoices, and transaction logs. You can restore it anytime.
-            </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* Backup & Database Tools Card */}
+            <Paper sx={{ p: 4, boxSizing: 'border-box' }}>
+              <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
+                Backup & Database Tools
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Export your current showroom database containing products, customers, suppliers, purchases, deliveries, invoices, and transaction logs. You can restore it anytime.
+              </Typography>
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <Button
-                variant="outlined"
-                color="secondary"
-                size="large"
-                startIcon={<CloudDownload />}
-                onClick={handleBackup}
-                fullWidth
-                sx={{ height: 48 }}
-              >
-                Export Showroom Database
-              </Button>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  size="large"
+                  startIcon={<CloudDownload />}
+                  onClick={handleBackup}
+                  fullWidth
+                  sx={{ height: 48 }}
+                >
+                  Export Showroom Database
+                </Button>
 
-              <Button
-                variant="outlined"
-                color="warning"
-                size="large"
-                component="label"
-                startIcon={<CloudUpload />}
-                fullWidth
-                sx={{ height: 48 }}
-              >
-                Restore Showroom Database
-                <input
-                  type="file"
-                  hidden
-                  accept=".json"
-                  onChange={handleRestore}
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  size="large"
+                  component="label"
+                  startIcon={<CloudUpload />}
+                  fullWidth
+                  sx={{ height: 48 }}
+                >
+                  Restore Showroom Database
+                  <input
+                    type="file"
+                    hidden
+                    accept=".json"
+                    onChange={handleRestore}
+                  />
+                </Button>
+              </Box>
+            </Paper>
+
+            {/* Desktop App & Updates Card */}
+            <Paper sx={{ p: 4, boxSizing: 'border-box' }}>
+              <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+                Desktop App & Live Updates
+              </Typography>
+              
+              {/* App Mode Status */}
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <LaptopMac color="primary" />
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>App Status</Typography>
+                </Box>
+                <Chip 
+                  label={isStandalone ? "Desktop App" : "Web Browser"} 
+                  color={isStandalone ? "success" : "info"}
+                  size="small"
+                  variant="filled"
+                  sx={{ fontWeight: 700 }}
                 />
-              </Button>
-            </Box>
-          </Paper>
+              </Box>
+
+              {/* Install PWA section */}
+              {!isStandalone && (
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Install DecoCraft on your computer for a standalone window, offline functionality, and a desktop shortcut.
+                  </Typography>
+                  {installPrompt ? (
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      size="large"
+                      startIcon={<GetApp />}
+                      onClick={handleInstallClick}
+                      fullWidth
+                      sx={{ 
+                        height: 48, 
+                        fontWeight: 800,
+                        backgroundImage: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
+                        boxShadow: '0 4px 12px rgba(236,72,153,0.3)',
+                        '&:hover': {
+                          backgroundImage: 'linear-gradient(135deg, #db2777 0%, #7c3aed 100%)',
+                        }
+                      }}
+                    >
+                      Install Desktop App
+                    </Button>
+                  ) : (
+                    <Box sx={{ p: 2, bgcolor: 'info.light', color: 'info.contrastText', borderRadius: 1.5, display: 'flex', gap: 1 }}>
+                      <Info fontSize="small" sx={{ mt: 0.2 }} />
+                      <Typography variant="caption" sx={{ lineHeight: 1.3 }}>
+                        To install this app on your desktop, click the Install option (💻 or ⊕) in your browser's address bar.
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              )}
+
+              <Divider sx={{ my: 2.5 }} />
+
+              {/* Updates Section */}
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary">Current Client Version:</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>v1.0.4</Typography>
+                </Box>
+
+                {isUpdateAvailable ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Alert severity="warning" sx={{ py: 0.5 }}>
+                      A new desktop update is ready to install!
+                    </Alert>
+                    <Button
+                      variant="contained"
+                      color="error"
+                      size="large"
+                      className="animate-pulse"
+                      startIcon={<ArrowCircleUp className="animate-bounce" />}
+                      onClick={handleApplyUpdate}
+                      fullWidth
+                      sx={{ 
+                        height: 48,
+                        fontWeight: 800,
+                        boxShadow: '0 4px 12px rgba(211, 47, 47, 0.3)'
+                      }}
+                    >
+                      Reload & Update Now
+                    </Button>
+                  </Box>
+                ) : (
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    size="large"
+                    disabled={checkingUpdates}
+                    startIcon={checkingUpdates ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
+                    onClick={handleCheckUpdates}
+                    fullWidth
+                    sx={{ height: 48, fontWeight: 700 }}
+                  >
+                    {checkingUpdates ? "Checking updates..." : "Check for Updates"}
+                  </Button>
+                )}
+              </Box>
+            </Paper>
+          </Box>
         </Grid>
       </Grid>
     </Box>
