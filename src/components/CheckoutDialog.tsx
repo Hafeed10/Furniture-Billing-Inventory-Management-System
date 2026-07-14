@@ -179,7 +179,7 @@ export const CheckoutDialog: React.FC<CheckoutDialogProps> = ({
             >
               <Box 
                 component="img"
-                src="/payment_qr.jpg"
+                src="/payment_qr.jpeg"
                 alt="PhonePe Payment QR"
                 sx={{ 
                   width: '100%', 
