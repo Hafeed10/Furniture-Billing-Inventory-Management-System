@@ -131,31 +131,31 @@ function App() {
     };
   }, [setInstallPrompt]);
 
-  // Service Worker Update Check
+  // Service Worker Registration and Update Check
   React.useEffect(() => {
     if ('serviceWorker' in navigator) {
-      // Get the existing registration
-      navigator.serviceWorker.getRegistration().then(reg => {
-        if (reg) {
-          setSwRegistration(reg);
+      // Register service worker directly and capture registration object
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+        setSwRegistration(reg);
 
-          // If there is already a waiting worker, update is available
-          if (reg.waiting) {
-            setIsUpdateAvailable(true);
-          }
-
-          // Listen for new service worker installation
-          reg.addEventListener('updatefound', () => {
-            const newWorker = reg.installing;
-            if (newWorker) {
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  setIsUpdateAvailable(true);
-                }
-              });
-            }
-          });
+        // If there is already a waiting worker, update is available
+        if (reg.waiting) {
+          setIsUpdateAvailable(true);
         }
+
+        // Listen for new service worker installation
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                setIsUpdateAvailable(true);
+              }
+            });
+          }
+        });
+      }).catch(err => {
+        console.error('Service worker registration failed:', err);
       });
 
       // Listen for controllerchange to reload and take control
