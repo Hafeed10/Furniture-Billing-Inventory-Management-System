@@ -133,7 +133,7 @@ export const Deliveries: React.FC = () => {
   
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'All' | 'Pending' | 'Shipped' | 'Delivered'>('All');
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Scheduled' | 'Out for Delivery' | 'Delivered'>('All');
   const [dateFilter, setDateFilter] = useState<string>(''); // empty for "All Dates"
   const [mapZoom, setMapZoom] = useState<number>(2); // 1 = zoom out, 2 = normal, 3 = zoom in
 
@@ -325,7 +325,8 @@ export const Deliveries: React.FC = () => {
           customerName: 'Anita Mishra',
           status: 'Shipped',
           x: 350,
-          y: 190
+          y: 190,
+          eta: undefined
         });
       }
       if (!list.find(x => x.driverName === 'Suresh Das')) {
@@ -336,7 +337,8 @@ export const Deliveries: React.FC = () => {
           customerName: 'Vikram Khanna',
           status: 'Pending',
           x: 620,
-          y: 240
+          y: 240,
+          eta: undefined
         });
       }
     }
